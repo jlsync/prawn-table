@@ -155,6 +155,10 @@ module Prawn
       #
       attr_reader :dummy_cells
 
+      # A hash of options to be passed as options to subtables
+      #
+      attr_accessor :subtable_options
+
       # Instantiates a Cell based on the given options. The particular class of
       # cell returned depends on the :content argument. See the Prawn::Table
       # documentation under "Data" for allowable content types.
@@ -184,7 +188,7 @@ module Prawn
         when Prawn::Table
           Cell::Subtable.new(pdf, at, options)
         when Array
-          subtable = Prawn::Table.new(options[:content], pdf, {})
+          subtable = Prawn::Table.new(options[:content], pdf, options[:subtable_options] || {})
           Cell::Subtable.new(pdf, at, options.merge(:content => subtable))
         else
           raise Errors::UnrecognizedTableContent
