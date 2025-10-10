@@ -10,21 +10,22 @@ Gem::Specification.new do |spec|
                 ["prawn-table.gemspec", "Gemfile",
                  "COPYING", "LICENSE", "GPLv2", "GPLv3"]
   spec.require_path = "lib"
-  spec.required_ruby_version = '>= 1.9.3'
-  spec.required_rubygems_version = ">= 1.3.6"
+  spec.required_ruby_version = '>= 2.6'
+  spec.required_rubygems_version = ">= 2.0.0"
 
   spec.test_files = Dir[ "spec/*_spec.rb" ]
   spec.authors = ["Gregory Brown","Brad Ediger","Daniel Nelson","Jonathan Greenberg","James Healy", "Hartwig Brandl"]
   spec.email = ["gregory.t.brown@gmail.com","brad@bradediger.com","dnelson@bluejade.com","greenberg@entryway.net","jimmy@deefa.com", "mail@hartwigbrandl.at"]
-  spec.rubyforge_project = "prawn"
   spec.licenses = %w(PRAWN GPL-2.0 GPL-3.0)
 
   spec.add_dependency('prawn', '>= 1.3.0', '< 3.0.0')
+
   spec.add_development_dependency('pdf-inspector', '~> 1.1.0')
   spec.add_development_dependency('yard')
   spec.add_development_dependency('rspec', '~> 3.0')
   spec.add_development_dependency('rake')
   spec.add_development_dependency('simplecov')
+  spec.add_development_dependency('prawn-dev', '~> 0.3.0')
   spec.add_development_dependency('prawn-manual_builder', ">= 0.2.0")
   spec.add_development_dependency('pdf-reader', '~>1.2')
 

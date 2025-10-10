@@ -943,13 +943,15 @@ describe "Prawn::Table" do
         " block" do
 
       stylable = double
-      expect(stylable).to receive(:style).with(:foo => :bar).once.and_yield
+      expect(stylable).to receive(:style).with({:foo => :bar}).once.and_yield
 
       block = double
       expect(block).to receive(:kick).once
 
       Prawn::Document.new do
-        table([["x"]]) { style(stylable, :foo => :bar) { block.kick } }
+        table([["x"]]) do
+          style(stylable, {:foo => :bar}) { block.kick }
+        end
       end
     end
 
@@ -980,8 +982,9 @@ describe "Prawn::Table" do
     it "should ignore headers" do
       data = [["header"], ["foo"], ["bar"], ["baz"]]
       pdf = Prawn::Document.new
-      t = pdf.table(data, :header => true,
-                    :row_colors => ['cccccc', 'ffffff']) do
+      t = pdf.table(data,
+                    { :header => true,
+                      :row_colors => ['cccccc', 'ffffff']}) do
         row(0).background_color = '333333'
       end
 
@@ -991,8 +994,9 @@ describe "Prawn::Table" do
     it "stripes rows consistently from page to page, skipping header rows" do
       data = [["header"]] + [["foo"]] * 70
       pdf = Prawn::Document.new
-      t = pdf.make_table(data, :header => true,
-          :row_colors => ['cccccc', 'ffffff']) do
+      t = pdf.make_table(data,
+                         { :header => true,
+                           :row_colors => ['cccccc', 'ffffff']}) do
         cells.padding = 0
         cells.size = 9
         row(0).size = 11
@@ -1608,5 +1612,15 @@ describe "colspan / rowspan" do
     pdf.table [['three', 'four']], position: :center
     pdf.render
     expect(pdf.page_count).to eq 1
+  end
+
+  it 'illustrates issue #56 cell style should not be overwritten by table style', issue: 56 do
+    t = @pdf.table([['col1', 'col2'],
+                    ['val1', { content: 'val2', align: :left }]],
+                   cell_style: { align: :center })
+    expect(t.cells[0, 0].align).to eq :center
+    expect(t.cells[0, 1].align).to eq :center
+    expect(t.cells[1, 0].align).to eq :center
+    expect(t.cells[1, 1].align).to eq :left
   end
 end

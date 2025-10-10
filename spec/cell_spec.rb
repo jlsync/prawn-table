@@ -36,8 +36,16 @@ describe "Prawn::Table::Cell" do
     end
 
     it "should convert nil, Numeric, and Date values to strings" do
-      [nil, 123, 123.45, Date.today].each do |value|
+      [nil, 123, 123.45, Date.today, Time.new].each do |value|
         c = @pdf.cell(:content => value)
+        expect(c).to be_a_kind_of Prawn::Table::Cell::Text
+        expect(c.content).to eq value.to_s
+      end
+    end
+
+    it "should convert nil, Numeric, and Date values to strings when value is extracted from options" do
+      [nil, 123, 123.45, Date.today, Time.new].each do |value|
+        c = Prawn::Table::Cell.make(@pdf, {}, { :content => value })
         expect(c).to be_a_kind_of Prawn::Table::Cell::Text
         expect(c.content).to eq value.to_s
       end
@@ -399,7 +407,7 @@ describe "Prawn::Table::Cell" do
       expect(@pdf).to receive(:stroke_color=).with("ff00ff")
 
       c = @pdf.cell(:content => "text",
-        :border_color => %w[ff0000 00ff00 0000ff ff00ff])
+                    :border_color => %w[ff0000 00ff00 0000ff ff00ff])
 
       expect(c.border_colors).to eq %w[ff0000 00ff00 0000ff ff00ff]
     end
@@ -426,7 +434,7 @@ describe "Prawn::Table::Cell" do
       expect(@pdf).to receive(:line_width=).with(5)
 
       c = @pdf.cell(:content => "text",
-        :border_width => [2, 3, 4, 5])
+                    :border_width => [2, 3, 4, 5])
       expect(c.border_widths).to eq [2, 3, 4, 5]
     end
 
@@ -447,7 +455,7 @@ describe "Prawn::Table::Cell" do
 
     it "should set border lines with :border_lines" do
       c = @pdf.cell(:content => "text",
-        :border_lines => [:solid, :dotted, :dashed, :solid])
+                    :border_lines => [:solid, :dotted, :dashed, :solid])
       expect(c.border_lines).to eq [:solid, :dotted, :dashed, :solid]
     end
   end
@@ -592,7 +600,7 @@ describe "Image cells" do
   describe "with default options" do
     before(:each) do
       @cell = Prawn::Table::Cell.make(@pdf,
-        :image => "#{Prawn::DATADIR}/images/prawn.png")
+                                      { :image => file_fixture("prawn.png").to_s })
     end
 
     it "should create a Cell::Image" do
@@ -608,7 +616,7 @@ describe "Image cells" do
   describe "hash syntax" do
     before(:each) do
       @table = @pdf.make_table([[{
-        :image => "#{Prawn::DATADIR}/images/prawn.png",
+        :image => file_fixture("prawn.png").to_s,
         :scale => 2,
         :fit => [100, 200],
         :image_width => 123,
