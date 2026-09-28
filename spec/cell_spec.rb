@@ -544,6 +544,30 @@ describe "Prawn::Table::Cell" do
       c.draw
     end
 
+    [false, true].each do |inline_format|
+      it "preserves option precedence and cell formatting with inline_format=#{inline_format}" do
+        c = cell(:content => "text", :align => :right,
+                 :font_style => :bold)
+        c.inline_format = true if inline_format
+        extra_options = {:align => :left, :width => 100, :document => nil}.freeze
+        box_class = inline_format ? Prawn::Text::Formatted::Box : Prawn::Text::Box
+
+        expect(box_class).to receive(:new).with(anything,
+          hash_including(:align => :left, :width => 100,
+                         :style => :bold, :document => @pdf)).and_call_original
+        c.__send__(:text_box, extra_options)
+
+        expect(c.align).to eq :right
+        expect(c.inline_format).to eq(inline_format ? true : nil)
+        expect(c.font.name).to eq 'Helvetica-Bold'
+
+        expect(box_class).to receive(:new).with(anything,
+          hash_including(:align => :right, :style => :bold,
+                         :document => @pdf)).and_call_original
+        c.__send__(:text_box)
+      end
+    end
+
   end
 
   describe "Font handling" do

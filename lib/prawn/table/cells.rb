@@ -193,7 +193,7 @@ module Prawn
       #   table.cells.row(3..6).background_color = 'cc0000'
       #
       def method_missing(id, *args, &block)
-        if id.to_s =~ /=\z/
+        if id.end_with?("=")
           each { |c| c.send(id, *args, &block) if c.respond_to?(id) }
         else
           super
