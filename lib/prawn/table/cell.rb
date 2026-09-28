@@ -206,6 +206,9 @@ module Prawn
       # cell's bounding box width so that rounding error does not prevent a cell
       # from rendering.
       #
+      # Index of each side in the per-side border arrays.
+      BORDER_INDEXES = { :top => 0, :right => 1, :bottom => 2, :left => 3 }.freeze
+
       FPTolerance = 1
 
       # Sets up a cell on the document +pdf+, at the given x/y location +point+,
@@ -735,9 +738,17 @@ module Prawn
       def draw_borders(pt)
         x, y = pt
 
-        @pdf.mask(:line_width, :stroke_color) do
+        # Outside a stamp, only write line width, stroke color and dash
+        # operators when they change: the output looks the same but costs far
+        # less per cell. A stamp's content stream inherits the graphics state
+        # of wherever it is placed, so there every value is still written.
+        in_stamp = @pdf.state.page.in_stamp_stream?
+        old_line_width = @pdf.line_width
+        old_stroke_color = @pdf.stroke_color
+
+        begin
           @borders.each do |border|
-            idx = {:top => 0, :right => 1, :bottom => 2, :left => 3}[border]
+            idx = BORDER_INDEXES[border]
             border_color = @border_colors[idx]
             border_width = @border_widths[idx]
             border_line  = @border_lines[idx]
@@ -771,11 +782,15 @@ module Prawn
                 " :dashed"
             end
 
-            @pdf.line_width   = border_width
-            @pdf.stroke_color = border_color
+            @pdf.line_width = border_width if in_stamp || @pdf.line_width != border_width
+            @pdf.stroke_color = border_color if in_stamp || @pdf.stroke_color != border_color
             @pdf.stroke_line(from, to)
-            @pdf.undash
+            @pdf.undash if in_stamp || @pdf.dashed?
           end
+        ensure
+          # Restore even if a border raises (e.g. an invalid border_line).
+          @pdf.line_width = old_line_width if in_stamp || @pdf.line_width != old_line_width
+          @pdf.stroke_color = old_stroke_color if in_stamp || @pdf.stroke_color != old_stroke_color
         end
       end
 

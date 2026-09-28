@@ -130,7 +130,7 @@ module Prawn
           #don't take spanned cells
           if cell.colspan == 1 and cell.class != Prawn::Table::Cell::SpanDummy
             index = cell.send(row_or_column)
-            values[index] = [values[index], cell.send(meth)].compact.send(aggregate)
+            values[index] = aggregate_value(values[index], cell.send(meth), aggregate)
           end
         end
 
@@ -159,7 +159,7 @@ module Prawn
 
             if spanned_width_needs_fixing
               #not entirely sure why we need this line, but with it the tests pass
-              values[index] = [values[index], cell.send(meth)].compact.send(aggregate)
+              values[index] = aggregate_value(values[index], cell.send(meth), aggregate)
               #overwrite the old values with the new ones, but only if all entries existed
               entries_exist = true
               cell.colspan.times { |i| entries_exist = false if values[index+i].nil? }
@@ -169,12 +169,24 @@ module Prawn
             end
           else
             if spanned_width_needs_fixing && cell.class == Prawn::Table::Cell::SpanDummy
-              values[index] = [values[index], cell.send(meth)].compact.send(aggregate)
+              values[index] = aggregate_value(values[index], cell.send(meth), aggregate)
             end
           end
         end
 
         return values.values.inject(0, &:+)
+      end
+
+      private
+
+      # Same result as [current, value].compact.send(aggregate), without
+      # allocating two arrays per cell.
+      def aggregate_value(current, value, aggregate)
+        return value if current.nil?
+        return current if value.nil?
+        return (value > current ? value : current) if aggregate == :max
+
+        [current, value].send(aggregate)
       end
     end
 
