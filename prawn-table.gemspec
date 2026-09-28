@@ -10,7 +10,7 @@ Gem::Specification.new do |spec|
                 ["prawn-table.gemspec", "Gemfile",
                  "COPYING", "LICENSE", "GPLv2", "GPLv3"]
   spec.require_path = "lib"
-  spec.required_ruby_version = '>= 2.6'
+  spec.required_ruby_version = '>= 3.3'
   spec.required_rubygems_version = ">= 2.0.0"
 
   spec.test_files = Dir[ "spec/*_spec.rb" ]
@@ -25,7 +25,7 @@ Gem::Specification.new do |spec|
   spec.add_development_dependency('rspec', '~> 3.0')
   spec.add_development_dependency('rake')
   spec.add_development_dependency('simplecov')
-  spec.add_development_dependency('prawn-dev', '~> 0.3.0')
+  spec.add_development_dependency('prawn-dev', '~> 0.6.0')
   spec.add_development_dependency('prawn-manual_builder', ">= 0.2.0")
   spec.add_development_dependency('pdf-reader', '~>1.2')
 

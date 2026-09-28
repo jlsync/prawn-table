@@ -7,11 +7,6 @@ require 'yard'
 
 task default: %i[spec rubocop]
 
-desc "Run all rspec files"
-RSpec::Core::RakeTask.new("spec") do |c|
-  c.rspec_opts = "-t ~unresolved"
-end
-
 desc "Show library's code statistics"
 task :stats do
   require 'code_statistics'
