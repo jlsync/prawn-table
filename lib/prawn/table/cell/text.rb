@@ -24,6 +24,10 @@ module Prawn
           define_method(option) { @text_options[option] }
         end
 
+        HEIGHT_CACHE_LIMIT = 256
+        HEIGHT_CACHE_MAX_TEXT_BYTES = 128
+        private_constant :HEIGHT_CACHE_LIMIT, :HEIGHT_CACHE_MAX_TEXT_BYTES
+
         attr_writer :font, :text_color
 
         def initialize(pdf, point, options={})
@@ -56,9 +60,25 @@ module Prawn
         #
         def natural_content_height
           with_font do
+            cache = natural_height_cache
+            if cache
+              entry = cache[@content]
+              signature = [@pdf.font, @pdf.font_size, spanned_content_width,
+                @pdf.bounds.height, @pdf.bounds.absolute_bottom,
+                @pdf.character_spacing, @pdf.default_leading,
+                @pdf.default_kerning?, @pdf.text_direction, @text_options]
+              return entry[1] if entry && entry[0] == signature
+            end
+
             b = text_box(:width => spanned_content_width + FPTolerance)
             b.render(:dry_run => true)
-            b.height + b.line_gap
+            height = b.height + b.line_gap
+
+            if signature
+              signature[-1] = @text_options.transform_values(&:dup)
+              cache[@content] = [signature, height]
+            end
+            height
           end
         end
 
@@ -137,6 +157,25 @@ module Prawn
         end
 
         private
+
+        # Keep one measurement per short string on this document. Once full,
+        # unseen text takes the normal path without allocating a signature.
+        # Hash snapshots string keys; option snapshots protect against changes
+        # to a cell after measurement. Fixed bounds make the available height
+        # unambiguous, and custom text layout keeps its existing behavior.
+        def natural_height_cache
+          return unless instance_of?(Text)
+          return if @text_options[:inline_format] ||
+            @content.bytesize > HEIGHT_CACHE_MAX_TEXT_BYTES
+
+          cache = @pdf.instance_variable_get(:@prawn_table_text_heights) ||
+            @pdf.instance_variable_set(:@prawn_table_text_heights, {})
+          return if cache.size >= HEIGHT_CACHE_LIMIT && !cache.key?(@content)
+          return if @pdf.bounds.stretchy? || !@pdf.fallback_fonts.empty? ||
+            !::Prawn::Text::Box.extensions.empty?
+
+          cache
+        end
 
         # Returns the greatest possible width of any single character
         #   under the given text options.

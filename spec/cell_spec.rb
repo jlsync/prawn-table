@@ -570,6 +570,168 @@ describe "Prawn::Table::Cell" do
 
   end
 
+  describe "text height cache" do
+    include CellHelpers
+
+    def uncached_height(text_cell)
+      text_cell.__send__(:with_font) do
+        box = text_cell.__send__(:text_box,
+          :width => text_cell.spanned_content_width + Prawn::Table::Cell::FPTolerance)
+        box.render(:dry_run => true)
+        box.height + box.line_gap
+      end
+    end
+
+    def height_cell(options={})
+      cell({:content => "Some text that wraps onto several lines", :width => 100}.merge(options))
+    end
+
+    it "reuses a measurement between cells and tables on the same document" do
+      first = height_cell
+      height = first.natural_content_height
+      second = height_cell
+      expect(second).to_not receive(:text_box)
+      expect(second.natural_content_height).to eq height
+
+      expect(Prawn::Text::Box).to_not receive(:new)
+      @pdf.make_table([[first.content]], :column_widths => [100])
+    end
+
+    it "does not share measurements between documents" do
+      height_cell.natural_content_height
+      @pdf = Prawn::Document.new
+      c = height_cell
+      expected = uncached_height(c)
+      expect(c).to receive(:text_box).and_call_original
+      expect(c.natural_content_height).to eq expected
+    end
+
+    [
+      {:width => 45}, {:padding => 20}, {:size => 18}, {:font => 'Courier'},
+      {:font_style => :bold}, {:leading => 5}, {:kerning => false},
+      {:single_line => true}, {:align => :justify}, {:valign => :bottom},
+      {:overflow => :shrink_to_fit, :min_font_size => 6}
+    ].each do |options|
+      it "remeasures when cell options change to #{options.inspect}" do
+        c = height_cell
+        c.natural_content_height
+        c.style(options)
+        expected = uncached_height(c)
+        expect(c).to receive(:text_box).and_call_original
+        expect(c.natural_content_height).to eq expected
+      end
+    end
+
+    [
+      [:font, 'Courier'], [:font_size, 18], [:default_leading, 5],
+      [:default_kerning, false], [:text_direction=, :rtl]
+    ].each do |method, value|
+      it "remeasures when the document's #{method} changes" do
+        c = height_cell
+        c.natural_content_height
+        @pdf.public_send(method, value)
+        expected = uncached_height(c)
+        expect(c).to receive(:text_box).and_call_original
+        expect(c.natural_content_height).to eq expected
+      end
+    end
+
+    it "remeasures with different character spacing" do
+      c = height_cell
+      c.natural_content_height
+      @pdf.character_spacing(3) do
+        expected = uncached_height(c)
+        expect(c).to receive(:text_box).and_call_original
+        expect(c.natural_content_height).to eq expected
+      end
+    end
+
+    it "remeasures when the available height changes" do
+      c = height_cell
+      full_height = c.natural_content_height
+      @pdf.bounding_box([0, 100], :width => 100, :height => 15) do
+        expected = uncached_height(c)
+        expect(expected).to be < full_height
+        expect(c.natural_content_height).to eq expected
+      end
+    end
+
+    it "snapshots content so later mutations cannot corrupt earlier entries" do
+      text = 'Short'
+      original_height = height_cell(:content => text).natural_content_height
+      text.replace('Some text that wraps onto several lines')
+      changed = height_cell(:content => text)
+      expect(changed.natural_content_height).to eq uncached_height(changed)
+      expect(changed.natural_content_height).to be > original_height
+      original = height_cell(:content => 'Short')
+      expect(original).to_not receive(:text_box)
+      expect(original.natural_content_height).to eq original_height
+    end
+
+    it "bounds storage and keeps repeated labels after many unique values" do
+      c = height_cell(:content => 'Label')
+      height = c.natural_content_height
+      300.times { |i| height_cell(:content => "Unique #{i}").natural_content_height }
+      cache = @pdf.instance_variable_get(:@prawn_table_text_heights)
+      expect(cache.size).to eq 256
+      expect(c).to_not receive(:text_box)
+      expect(c.natural_content_height).to eq height
+      unseen = height_cell(:content => 'Unseen')
+      2.times do
+        expect(unseen).to receive(:text_box).and_call_original
+        unseen.natural_content_height
+      end
+      expect(cache.size).to eq 256
+    end
+
+    it "does not retain long text or inline formatting" do
+      [{:content => 'long text ' * 20},
+       {:content => '<b>Label</b>', :inline_format => true}].each do |options|
+        c = height_cell(options)
+        expect(c).to receive(:text_box).twice.and_call_original
+        2.times { c.natural_content_height }
+      end
+      expect(@pdf.instance_variable_get(:@prawn_table_text_heights)).to be_nil
+    end
+
+    it "bypasses the cache when fallback fonts are active" do
+      c = height_cell
+      c.natural_content_height
+      @pdf.fallback_fonts = ['Courier']
+      expected = uncached_height(c)
+      expect(c).to receive(:text_box).and_call_original
+      expect(c.natural_content_height).to eq expected
+    end
+
+    it "bypasses the cache in stretchy bounds" do
+      c = height_cell
+      c.natural_content_height
+      @pdf.bounding_box([0, 100], :width => 100) do
+        expected = uncached_height(c)
+        expect(c).to receive(:text_box).and_call_original
+        expect(c.natural_content_height).to eq expected
+      end
+    end
+
+    it "bypasses the cache when text box extensions are active" do
+      c = height_cell
+      c.natural_content_height
+      extension = Module.new
+      Prawn::Text::Box.extensions << extension
+      expect(c).to receive(:text_box).and_call_original
+      c.natural_content_height
+    ensure
+      Prawn::Text::Box.extensions.delete(extension)
+    end
+
+    it "preserves custom text cell measurement hooks" do
+      klass = Class.new(Prawn::Table::Cell::Text)
+      c = klass.new(@pdf, [0, @pdf.cursor], :content => 'Label', :width => 100)
+      expect(c).to receive(:text_box).twice.and_call_original
+      2.times { c.natural_content_height }
+    end
+  end
+
   describe "Font handling" do
     include CellHelpers
 
