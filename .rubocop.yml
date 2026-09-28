@@ -3,3 +3,15 @@ inherit_from: .rubocop_todo.yml
 inherit_gem:
   prawn-dev: rubocop.yml
 
+AllCops:
+  TargetRubyVersion: 3.3
+  SuggestExtensions: false
+
+# Anonymous argument/block forwarding would rewrite delegating method
+# signatures and detach them from their documented @param names.
+Style/ArgumentsForwarding:
+  Enabled: false
+
+Naming/BlockForwarding:
+  Enabled: false
+
