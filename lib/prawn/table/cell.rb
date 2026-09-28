@@ -746,49 +746,52 @@ module Prawn
         old_line_width = @pdf.line_width
         old_stroke_color = @pdf.stroke_color
 
-        @borders.each do |border|
-          idx = BORDER_INDEXES[border]
-          border_color = @border_colors[idx]
-          border_width = @border_widths[idx]
-          border_line  = @border_lines[idx]
+        begin
+          @borders.each do |border|
+            idx = BORDER_INDEXES[border]
+            border_color = @border_colors[idx]
+            border_width = @border_widths[idx]
+            border_line  = @border_lines[idx]
 
-          next if border_width <= 0
+            next if border_width <= 0
 
-          # Left and right borders are drawn one-half border beyond the center
-          # of the corner, so that the corners end up square.
-          from, to = case border
-                     when :top
-                       [[x, y], [x+width, y]]
-                     when :bottom
-                       [[x, y-height], [x+width, y-height]]
-                     when :left
-                       [[x, y + (border_top_width / 2.0)],
-                        [x, y - height - (border_bottom_width / 2.0)]]
-                     when :right
-                       [[x+width, y + (border_top_width / 2.0)],
-                        [x+width, y - height - (border_bottom_width / 2.0)]]
-                     end
+            # Left and right borders are drawn one-half border beyond the center
+            # of the corner, so that the corners end up square.
+            from, to = case border
+                       when :top
+                         [[x, y], [x+width, y]]
+                       when :bottom
+                         [[x, y-height], [x+width, y-height]]
+                       when :left
+                         [[x, y + (border_top_width / 2.0)],
+                          [x, y - height - (border_bottom_width / 2.0)]]
+                       when :right
+                         [[x+width, y + (border_top_width / 2.0)],
+                          [x+width, y - height - (border_bottom_width / 2.0)]]
+                       end
 
-          case border_line
-          when :dashed
-            @pdf.dash border_width * 4
-          when :dotted
-            @pdf.dash border_width, :space => border_width * 2
-          when :solid
-            # normal line style
-          else
-            raise ArgumentError, "border_line must be :solid, :dotted or" +
-              " :dashed"
+            case border_line
+            when :dashed
+              @pdf.dash border_width * 4
+            when :dotted
+              @pdf.dash border_width, :space => border_width * 2
+            when :solid
+              # normal line style
+            else
+              raise ArgumentError, "border_line must be :solid, :dotted or" +
+                " :dashed"
+            end
+
+            @pdf.line_width = border_width if in_stamp || @pdf.line_width != border_width
+            @pdf.stroke_color = border_color if in_stamp || @pdf.stroke_color != border_color
+            @pdf.stroke_line(from, to)
+            @pdf.undash if in_stamp || @pdf.dashed?
           end
-
-          @pdf.line_width = border_width if in_stamp || @pdf.line_width != border_width
-          @pdf.stroke_color = border_color if in_stamp || @pdf.stroke_color != border_color
-          @pdf.stroke_line(from, to)
-          @pdf.undash if in_stamp || @pdf.dashed?
+        ensure
+          # Restore even if a border raises (e.g. an invalid border_line).
+          @pdf.line_width = old_line_width if in_stamp || @pdf.line_width != old_line_width
+          @pdf.stroke_color = old_stroke_color if in_stamp || @pdf.stroke_color != old_stroke_color
         end
-
-        @pdf.line_width = old_line_width if in_stamp || @pdf.line_width != old_line_width
-        @pdf.stroke_color = old_stroke_color if in_stamp || @pdf.stroke_color != old_stroke_color
       end
 
       # Draws cell content within the cell's bounding box. Must be implemented
