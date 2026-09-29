@@ -10,6 +10,7 @@
 require 'prawn'
 require_relative 'table/column_width_calculator'
 require_relative 'table/cell'
+require_relative 'table/border_batch'
 require_relative 'table/cells'
 require_relative 'table/cell/in_table'
 require_relative 'table/cell/text'
@@ -79,6 +80,10 @@ module Prawn
   #   Either :left (the default), :center, :right, or a number. Specifies the
   #   horizontal position of the table within its bounding box. If a number is
   #   provided, it specifies the distance in points from the left edge.
+  # +batch_borders+::
+  #   If +true+ (the default), cell borders on each page are stroked together
+  #   before cell content, which is much faster for large tables. Set to
+  #   +false+ to draw each cell's borders immediately before its content.
   #
   # = Initializer Block
   #
@@ -142,6 +147,7 @@ module Prawn
       @pdf = document
       @cells = make_cells(data, table_opts.delete(:cell_style) || {})
       @header = false
+      @batch_borders = true
       table_opts.each do |k, v|
         send("#{k}=", v) if respond_to?("#{k}=")
       end
@@ -232,6 +238,13 @@ module Prawn
     # Accepts an Array of alternating row colors to stripe the table.
     #
     attr_writer :row_colors
+
+    # If +true+ (the default), the borders of all cells on a page are stroked
+    # together before their content, writing far fewer PDF operators for the
+    # same appearance. Set to +false+ to draw each cell's borders just before
+    # its content, as earlier versions did.
+    #
+    attr_writer :batch_borders
 
     # Sets styles for all cells.
     #
@@ -428,7 +441,7 @@ module Prawn
     # ink cells and then draw them
     def ink_and_draw_cells(cells_this_page, draw_cells = true)
       ink_cells(cells_this_page)
-      Cell.draw_cells(cells_this_page) if draw_cells
+      Cell.draw_cells(cells_this_page, @batch_borders) if draw_cells
     end
 
     # ink and draw cells, then start a new page

@@ -420,16 +420,50 @@ module Prawn
       # corresponding pt, making sure all backgrounds are behind all borders
       # and content.
       #
-      def self.draw_cells(cells)
+      # If +batch_borders+ is true, the borders of all cells are stroked
+      # together before any content, which writes far fewer PDF operators for
+      # the same appearance. Cells that override #draw_borders still have it
+      # called, in order, just before their content. (A positional argument,
+      # so existing wrappers that forward <tt>*args</tt> keep working.)
+      #
+      def self.draw_cells(cells, batch_borders = false)
         cells.each do |cell, pt|
           cell.set_width_constraints
           cell.draw_background(pt)
         end
 
-        cells.each do |cell, pt|
-          cell.draw_borders(pt)
+        unless batch_borders
+          cells.each do |cell, pt|
+            cell.draw_borders(pt)
+            cell.draw_bounded_content(pt)
+          end
+          return
+        end
+
+        batched = cells.map { |cell, _| cell.method(:draw_borders).owner.equal?(Cell) }
+        if (first = batched.index(true))
+          batch = BorderBatch.new(cells[first][0].document)
+          begin
+            cells.each_with_index do |(cell, pt), i|
+              batch.add(cell, pt) if batched[i]
+            end
+            batch.stroke
+          ensure
+            batch.restore
+          end
+        end
+
+        cells.each_with_index do |(cell, pt), i|
+          cell.draw_borders(pt) unless batched[i]
           cell.draw_bounded_content(pt)
         end
+      end
+
+      # The document this cell draws on.
+      #
+      # @private
+      def document
+        @pdf
       end
 
       # Draws the cell's content at the point provided.
@@ -736,8 +770,6 @@ module Prawn
       # cell content.
       #
       def draw_borders(pt)
-        x, y = pt
-
         # Outside a stamp, only write line width, stroke color and dash
         # operators when they change: the output looks the same but costs far
         # less per cell. A stamp's content stream inherits the graphics state
@@ -747,29 +779,7 @@ module Prawn
         old_stroke_color = @pdf.stroke_color
 
         begin
-          @borders.each do |border|
-            idx = BORDER_INDEXES[border]
-            border_color = @border_colors[idx]
-            border_width = @border_widths[idx]
-            border_line  = @border_lines[idx]
-
-            next if border_width <= 0
-
-            # Left and right borders are drawn one-half border beyond the center
-            # of the corner, so that the corners end up square.
-            from, to = case border
-                       when :top
-                         [[x, y], [x+width, y]]
-                       when :bottom
-                         [[x, y-height], [x+width, y-height]]
-                       when :left
-                         [[x, y + (border_top_width / 2.0)],
-                          [x, y - height - (border_bottom_width / 2.0)]]
-                       when :right
-                         [[x+width, y + (border_top_width / 2.0)],
-                          [x+width, y - height - (border_bottom_width / 2.0)]]
-                       end
-
+          each_border_segment(pt) do |border_line, border_width, border_color, from, to|
             case border_line
             when :dashed
               @pdf.dash border_width * 4
@@ -791,6 +801,38 @@ module Prawn
           # Restore even if a border raises (e.g. an invalid border_line).
           @pdf.line_width = old_line_width if in_stamp || @pdf.line_width != old_line_width
           @pdf.stroke_color = old_stroke_color if in_stamp || @pdf.stroke_color != old_stroke_color
+        end
+      end
+
+      # Yields each border that #draw_borders would stroke for this cell at
+      # +pt+, in drawing order, as <tt>line, width, color, from, to</tt>.
+      # Borders with no width are skipped.
+      #
+      def each_border_segment(pt)
+        x, y = pt
+
+        @borders.each do |border|
+          idx = BORDER_INDEXES[border]
+          border_width = @border_widths[idx]
+
+          next if border_width <= 0
+
+          # Left and right borders are drawn one-half border beyond the center
+          # of the corner, so that the corners end up square.
+          from, to = case border
+                     when :top
+                       [[x, y], [x+width, y]]
+                     when :bottom
+                       [[x, y-height], [x+width, y-height]]
+                     when :left
+                       [[x, y + (border_top_width / 2.0)],
+                        [x, y - height - (border_bottom_width / 2.0)]]
+                     when :right
+                       [[x+width, y + (border_top_width / 2.0)],
+                        [x+width, y - height - (border_bottom_width / 2.0)]]
+                     end
+
+          yield @border_lines[idx], border_width, @border_colors[idx], from, to
         end
       end
 
