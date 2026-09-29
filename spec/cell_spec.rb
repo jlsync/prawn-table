@@ -671,9 +671,9 @@ describe "Prawn::Table::Cell" do
     it "bounds storage and keeps repeated labels after many unique values" do
       c = height_cell(:content => 'Label')
       height = c.natural_content_height
-      300.times { |i| height_cell(:content => "Unique #{i}").natural_content_height }
+      2100.times { |i| height_cell(:content => "Unique #{i}").natural_content_height }
       cache = @pdf.instance_variable_get(:@prawn_table_text_heights)
-      expect(cache.size).to eq 256
+      expect(cache.size).to eq 2048
       expect(c).to_not receive(:text_box)
       expect(c.natural_content_height).to eq height
       unseen = height_cell(:content => 'Unseen')
@@ -681,16 +681,51 @@ describe "Prawn::Table::Cell" do
         expect(unseen).to receive(:text_box).and_call_original
         unseen.natural_content_height
       end
-      expect(cache.size).to eq 256
+      expect(cache.size).to eq 2048
     end
 
-    it "does not retain long text or inline formatting" do
-      [{:content => 'long text ' * 20},
-       {:content => '<b>Label</b>', :inline_format => true}].each do |options|
-        c = height_cell(options)
-        expect(c).to receive(:text_box).twice.and_call_original
-        2.times { c.natural_content_height }
-      end
+    it "does not retain long text" do
+      c = height_cell(:content => 'long text ' * 20)
+      expect(c).to receive(:text_box).twice.and_call_original
+      2.times { c.natural_content_height }
+      expect(@pdf.instance_variable_get(:@prawn_table_text_heights)).to be_nil
+    end
+
+    it "reuses a measurement of inline formatted text" do
+      options = {
+        :content => '<b>Some</b> text that <i>wraps</i> onto several lines',
+        :inline_format => true,
+      }
+      first = height_cell(options)
+      height = first.natural_content_height
+      second = height_cell(options)
+      expect(second).to_not receive(:text_box)
+      expect(second.natural_content_height).to eq height
+      expect(height).to eq uncached_height(height_cell(options))
+    end
+
+    it "keeps inline formatted and plain measurements of the same text apart" do
+      text = '<b>Some</b> text <b>that</b> wraps'
+      formatted = height_cell(:content => text, :inline_format => true)
+      formatted_height = formatted.natural_content_height
+      plain = height_cell(:content => text)
+      expected = uncached_height(plain)
+      expect(expected).to_not eq formatted_height
+      expect(plain).to receive(:text_box).and_call_original
+      expect(plain.natural_content_height).to eq expected
+    end
+
+    it "bypasses the cache for inline formatting with a custom text formatter" do
+      formatter =
+        Class.new do
+          def self.format(string, *args)
+            Prawn::Text::Formatted::Parser.format(string, *args)
+          end
+        end
+      @pdf = Prawn::Document.new(:text_formatter => formatter)
+      c = height_cell(:content => '<b>Label</b>', :inline_format => true)
+      expect(c).to receive(:text_box).twice.and_call_original
+      2.times { c.natural_content_height }
       expect(@pdf.instance_variable_get(:@prawn_table_text_heights)).to be_nil
     end
 
@@ -722,6 +757,17 @@ describe "Prawn::Table::Cell" do
       c.natural_content_height
     ensure
       Prawn::Text::Box.extensions.delete(extension)
+    end
+
+    it "bypasses the cache when formatted text box extensions are active" do
+      c = height_cell(:content => '<b>Label</b>', :inline_format => true)
+      c.natural_content_height
+      extension = Module.new
+      Prawn::Text::Formatted::Box.extensions << extension
+      expect(c).to receive(:text_box).and_call_original
+      c.natural_content_height
+    ensure
+      Prawn::Text::Formatted::Box.extensions.delete(extension)
     end
 
     it "preserves custom text cell measurement hooks" do
