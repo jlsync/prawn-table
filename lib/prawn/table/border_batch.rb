@@ -7,21 +7,30 @@
 module Prawn
   class Table
     # Strokes the borders of a group of cells with far fewer graphics state
-    # changes and stroke operators than drawing each cell's borders in turn,
-    # while painting in the same order.
+    # changes and stroke operators than drawing each cell's borders in turn.
     #
-    # Consecutive borders that share a line style, width and color are
-    # gathered into one path and stroked once. A border identical to one
-    # already in that path, such as the edge shared by two adjacent cells, is
-    # written only once. Borders with a different style start a new path, so
-    # where differently styled borders overlap, the same one ends up on top.
+    # By default borders are painted in the same order as drawing each cell's
+    # borders in turn: consecutive borders that share a line style, width and
+    # color are gathered into one path and stroked once, and a border with a
+    # different style starts a new path, so where differently styled borders
+    # overlap, the same one ends up on top.
+    #
+    # With +by_style+, all borders that share a style are gathered into one
+    # path, however they are interleaved, and the paths are stroked from the
+    # thinnest line to the thickest (in order of first appearance among equal
+    # widths). Where borders of different styles meet or overlap, the thicker
+    # one ends up on top, as with collapsed borders in HTML tables.
+    #
+    # Either way, a border identical to one already in its path, such as the
+    # edge shared by two adjacent cells, is written only once.
     #
     # @private
     class BorderBatch
       LINE_STYLES = %i[solid dashed dotted].freeze
 
-      def initialize(pdf)
+      def initialize(pdf, by_style: false)
         @pdf = pdf
+        @by_style = by_style
         # A stamp's content stream inherits the graphics state of wherever it
         # is placed, so there every state operator is written. Elsewhere only
         # changes are written.
@@ -30,6 +39,8 @@ module Prawn
         @old_stroke_color = pdf.stroke_color
         @line = @width = @color = nil
         @segments = {}
+        # [line, width, color] => segments, in order of first appearance.
+        @paths = {}
       end
 
       # Adds the borders of +cell+, drawn at +point+ in the current bounds.
@@ -45,10 +56,7 @@ module Prawn
               raise ArgumentError, 'border_line must be :solid, :dotted or :dashed'
             end
 
-            stroke
-            @line = line
-            @width = width
-            @color = color
+            start_path(line, width, color)
           end
 
           # The same operators Graphics#move_to and #line_to would write, so
@@ -72,25 +80,51 @@ module Prawn
         end
       end
 
-      # Strokes the borders gathered since the last style change.
+      # Strokes the borders gathered so far.
       #
       def stroke
-        return if @segments.empty?
-
-        case @line
-        when :dashed
-          @pdf.dash(@width * 4)
-        when :dotted
-          @pdf.dash(@width, space: @width * 2)
+        if @by_style
+          # sort_by is not stable, so break ties by order of first appearance.
+          @paths.each_with_index
+            .sort_by { |((_, width, _), _), index| [width, index] }
+            .each { |((line, width, color), segments), _| stroke_path(line, width, color, segments) }
+          @paths.clear
+          @line = @width = @color = nil
+        else
+          stroke_path(@line, @width, @color, @segments)
         end
-        @pdf.line_width = @width if @in_stamp || @pdf.line_width != @width
-        @pdf.stroke_color = @color if @in_stamp || @pdf.stroke_color != @color
+      end
 
-        @pdf.add_content(@segments.keys.join("\n"))
+      private
+
+      def start_path(line, width, color)
+        if @by_style
+          @segments = (@paths[[line, width, color]] ||= {})
+        else
+          stroke
+        end
+        @line = line
+        @width = width
+        @color = color
+      end
+
+      def stroke_path(line, width, color, segments)
+        return if segments.empty?
+
+        case line
+        when :dashed
+          @pdf.dash(width * 4)
+        when :dotted
+          @pdf.dash(width, space: width * 2)
+        end
+        @pdf.line_width = width if @in_stamp || @pdf.line_width != width
+        @pdf.stroke_color = color if @in_stamp || @pdf.stroke_color != color
+
+        @pdf.add_content(segments.keys.join("\n"))
         @pdf.stroke
 
         @pdf.undash if @in_stamp || @pdf.dashed?
-        @segments.clear
+        segments.clear
       end
     end
   end

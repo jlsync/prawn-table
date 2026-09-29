@@ -1362,6 +1362,85 @@ describe "Prawn::Table" do
       expect(stamp_content).to include("1 w")
       expect(stamp_content).to match(/RG/)
     end
+
+    describe "by style" do
+      # A thick black outline around thin grey inner borders, so the style
+      # changes from one border to the next.
+      def outlined_table(pdf, options = {})
+        pdf.table([%w[a b], %w[c d], %w[e f]],
+          { :cell_style => { :border_width => 0.1, :border_color => "aaaaaa" } }.merge(options)) do |t|
+          t.row(0).style(:border_top_width => 0.5, :border_top_color => "000000")
+          t.row(-1).style(:border_bottom_width => 0.5, :border_bottom_color => "000000")
+          t.column(0).style(:border_left_width => 0.5, :border_left_color => "000000")
+          t.column(-1).style(:border_right_width => 0.5, :border_right_color => "000000")
+        end
+      end
+
+      # The line width and stroke color in effect for each path stroked, in
+      # order.
+      def stroked_states(pdf)
+        width = color = nil
+        pdf.render.lines.each_with_object([]) do |line, states|
+          case line.chomp
+          when /\A([\d.]+) w\z/ then width = Regexp.last_match(1).to_f
+          when /\A([\d. ]+) SCN\z/ then color = Regexp.last_match(1).split.map(&:to_f)
+          when "S" then states << [width, color]
+          end
+        end
+      end
+
+      it "strokes all borders of each style as one path" do
+        outlined_table(pdf, :batch_borders => :by_style)
+
+        expect(stroke_count(pdf)).to eq 2
+        unbatched = Prawn::Document.new
+        outlined_table(unbatched, :batch_borders => false)
+        expect(stroke_count(unbatched)).to eq 24
+      end
+
+      it "draws borders in the same places as batching in drawing order" do
+        in_order = Prawn::Document.new
+        outlined_table(in_order)
+        outlined_table(pdf, :batch_borders => :by_style)
+
+        expect(line_segments(pdf).sort).to eq line_segments(in_order).uniq.sort
+      end
+
+      it "strokes thicker borders after thinner ones" do
+        outlined_table(pdf, :batch_borders => :by_style)
+
+        expect(stroked_states(pdf).map(&:first)).to eq [0.1, 0.5]
+      end
+
+      it "strokes styles of equal width in order of first appearance" do
+        pdf.table(data, :batch_borders => :by_style) do |t|
+          t.cells.border_color = "ff0000"
+          t.cells[1, 1].border_color = "0000ff"
+        end
+
+        expect(stroked_states(pdf).map(&:last)).to eq [[1.0, 0.0, 0.0], [0.0, 0.0, 1.0]]
+      end
+
+      it "dashes only the dashed style" do
+        pdf.table(data, :batch_borders => :by_style) do |t|
+          t.cells[0, 0].border_lines = [:dashed] * 4
+        end
+
+        output = pdf.render
+        expect(stroke_count(pdf)).to eq 2
+        expect(output.scan(/\] [\d.]+ d$/).size).to eq 2 # dash, then undash
+        expect(pdf).to_not be_dashed
+      end
+
+      it "restores the line width and stroke color" do
+        pdf.line_width = 3
+        pdf.stroke_color = "00ff00"
+        outlined_table(pdf, :batch_borders => :by_style)
+
+        expect(pdf.line_width).to eq 3
+        expect(pdf.stroke_color).to eq "00ff00"
+      end
+    end
   end
 
   describe "nested tables" do
