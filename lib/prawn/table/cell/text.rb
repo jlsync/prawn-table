@@ -64,8 +64,7 @@ module Prawn
             if cache
               entry = cache[@content]
               signature = [@pdf.font, @pdf.font_size, spanned_content_width,
-                @pdf.bounds.height, @pdf.bounds.absolute_bottom,
-                @pdf.character_spacing, @pdf.default_leading,
+                @pdf.bounds.height, @pdf.character_spacing, @pdf.default_leading,
                 @pdf.default_kerning?, @pdf.text_direction, @text_options]
               return entry[1] if entry && entry[0] == signature
             end
@@ -162,7 +161,10 @@ module Prawn
         # unseen text takes the normal path without allocating a signature.
         # Hash snapshots string keys; option snapshots protect against changes
         # to a cell after measurement. Fixed bounds make the available height
-        # unambiguous, and custom text layout keeps its existing behavior.
+        # unambiguous: in them a text box's default height is the height of the
+        # bounds, whatever their position on the page, so a measurement can be
+        # reused in bounding boxes of the same size anywhere. Custom text
+        # layout keeps its existing behavior.
         # Inline-formatted text is parsed by Prawn's own formatter from the
         # string and the :inline_format option alone, both part of the key.
         def natural_height_cache

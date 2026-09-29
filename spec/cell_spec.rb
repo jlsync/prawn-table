@@ -656,6 +656,20 @@ describe "Prawn::Table::Cell" do
       end
     end
 
+    it "reuses a measurement in bounding boxes of the same size at other positions" do
+      height = nil
+      @pdf.bounding_box([0, 700], :width => 300, :height => 200) do
+        height = height_cell.natural_content_height
+      end
+      @pdf.bounding_box([50, 400], :width => 300, :height => 200) do
+        c = height_cell
+        expected = uncached_height(c)
+        expect(expected).to eq height
+        expect(c).to_not receive(:text_box)
+        expect(c.natural_content_height).to eq expected
+      end
+    end
+
     it "snapshots content so later mutations cannot corrupt earlier entries" do
       text = 'Short'
       original_height = height_cell(:content => text).natural_content_height
