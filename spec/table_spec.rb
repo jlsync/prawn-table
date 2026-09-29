@@ -1265,6 +1265,105 @@ describe "Prawn::Table" do
     end
   end
 
+  describe "border batching" do
+    let(:pdf) { Prawn::Document.new }
+    let(:data) { [%w[a b], %w[c d]] }
+
+    def line_segments(pdf)
+      PDF::Inspector::Graphics::Line.analyze(pdf.render).points.each_slice(2).to_a
+    end
+
+    def stroke_count(pdf)
+      pdf.render.scan(/^S$/).size
+    end
+
+    it "strokes each distinct border once, in a single path" do
+      pdf.table(data)
+
+      segments = line_segments(pdf)
+      # 2x2 cells: 6 horizontal and 6 vertical edges; shared edges written once.
+      expect(segments.size).to eq 12
+      expect(segments.uniq.size).to eq 12
+      expect(stroke_count(pdf)).to eq 1
+    end
+
+    it "draws each cell's borders separately with batch_borders: false" do
+      pdf.table(data, :batch_borders => false)
+
+      expect(line_segments(pdf).size).to eq 16
+      expect(stroke_count(pdf)).to eq 16
+    end
+
+    it "draws borders in the same places either way" do
+      unbatched = Prawn::Document.new
+      unbatched.table(data, :batch_borders => false)
+      pdf.table(data)
+
+      expect(line_segments(pdf).sort).to eq line_segments(unbatched).uniq.sort
+    end
+
+    it "starts a new path when the border style changes" do
+      pdf.table(data) do |t|
+        t.cells[1, 0].border_color = "ff0000"
+      end
+
+      # a, b in black; c in red; d in black again.
+      expect(stroke_count(pdf)).to eq 3
+      # Black is already current, so only the switches to red and back are
+      # written.
+      colors = PDF::Inspector::Graphics::Color.analyze(pdf.render)
+      expect(colors.stroke_color_count).to eq 2
+    end
+
+    it "restores the line width and stroke color" do
+      pdf.line_width = 3
+      pdf.stroke_color = "00ff00"
+      pdf.table(data, :cell_style => { :border_width => 2, :border_color => "ff0000" })
+
+      expect(pdf.line_width).to eq 3
+      expect(pdf.stroke_color).to eq "00ff00"
+    end
+
+    it "restores the line width and stroke color when a border line is invalid" do
+      pdf.line_width = 3
+      expect {
+        pdf.table(data, :cell_style => { :border_width => 2 }) do |t|
+          t.cells[1, 1].border_top_line = :wavy
+        end
+      }.to raise_error(ArgumentError)
+
+      expect(pdf.line_width).to eq 3
+      expect(pdf.stroke_color).to eq "000000"
+    end
+
+    it "still calls draw_borders on cells that override it" do
+      klass =
+        Class.new(Prawn::Table::Cell::Text) do
+          attr_reader :drawn_at
+
+          def draw_borders(point)
+            @drawn_at = point
+          end
+        end
+      custom = klass.new(pdf, [0, 0], :content => "x")
+
+      pdf.table([[custom, "y"]])
+
+      expect(custom.drawn_at).to_not(be_nil)
+      # Only the plain cell's four borders are stroked.
+      expect(line_segments(pdf).size).to eq 4
+    end
+
+    it "writes line width and stroke color explicitly inside a stamp" do
+      pdf.create_stamp("table") { pdf.table(data) }
+
+      streams = pdf.render.scan(/stream\n(.*?)endstream/m).flatten
+      stamp_content = streams.find { |s| s.include?(" m\n") }
+      expect(stamp_content).to include("1 w")
+      expect(stamp_content).to match(/RG/)
+    end
+  end
+
   describe "nested tables" do
     before(:each) do
       @pdf = Prawn::Document.new
