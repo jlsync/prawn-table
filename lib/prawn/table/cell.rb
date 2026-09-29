@@ -422,9 +422,12 @@ module Prawn
       #
       # If +batch_borders+ is true, the borders of all cells are stroked
       # together before any content, which writes far fewer PDF operators for
-      # the same appearance. Cells that override #draw_borders still have it
-      # called, in order, just before their content. (A positional argument,
-      # so existing wrappers that forward <tt>*args</tt> keep working.)
+      # the same appearance. With +:by_style+, all borders of each style are
+      # stroked as one path, thinnest first, so thicker borders end up on top
+      # where borders meet (see BorderBatch). Cells that override
+      # #draw_borders still have it called, in order, just before their
+      # content. (A positional argument, so existing wrappers that forward
+      # <tt>*args</tt> keep working.)
       #
       def self.draw_cells(cells, batch_borders = false)
         cells.each do |cell, pt|
@@ -442,7 +445,8 @@ module Prawn
 
         batched = cells.map { |cell, _| cell.method(:draw_borders).owner.equal?(Cell) }
         if (first = batched.index(true))
-          batch = BorderBatch.new(cells[first][0].document)
+          batch = BorderBatch.new(cells[first][0].document,
+            by_style: batch_borders == :by_style)
           begin
             cells.each_with_index do |(cell, pt), i|
               batch.add(cell, pt) if batched[i]

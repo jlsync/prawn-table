@@ -83,7 +83,11 @@ module Prawn
   # +batch_borders+::
   #   If +true+ (the default), cell borders on each page are stroked together
   #   before cell content, which is much faster for large tables. Set to
-  #   +false+ to draw each cell's borders immediately before its content.
+  #   +:by_style+ to stroke all borders of each style (line, width and color)
+  #   as a single path, which is faster still when styles alternate, such as
+  #   a thick outline around thin inner borders; thicker borders are then
+  #   painted over thinner ones where they meet. Set to +false+ to draw each
+  #   cell's borders immediately before its content.
   #
   # = Initializer Block
   #
@@ -241,8 +245,10 @@ module Prawn
 
     # If +true+ (the default), the borders of all cells on a page are stroked
     # together before their content, writing far fewer PDF operators for the
-    # same appearance. Set to +false+ to draw each cell's borders just before
-    # its content, as earlier versions did.
+    # same appearance. With +:by_style+, all borders of each style are stroked
+    # as one path, thinnest first, so where borders of different styles meet,
+    # the thicker one is on top. Set to +false+ to draw each cell's borders
+    # just before its content, as earlier versions did.
     #
     attr_writer :batch_borders
 
