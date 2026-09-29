@@ -126,12 +126,15 @@ module Prawn
         #calculate values for all cells that do not span accross multiple cells
         #this ensures that we don't have a problem if the first line includes
         #a cell that spans across multiple cells
+        #a colspan only spans columns: aggregated by row, such a cell counts
+        #towards its own row like any other
         @cells.each do |cell|
           #don't take spanned cells
-          if cell.colspan == 1 and cell.class != Prawn::Table::Cell::SpanDummy
-            index = cell.send(row_or_column)
-            values[index] = aggregate_value(values[index], cell.send(meth), aggregate)
-          end
+          next if cell.class == Prawn::Table::Cell::SpanDummy
+          next if row_or_column == :column && cell.colspan > 1
+
+          index = cell.send(row_or_column)
+          values[index] = aggregate_value(values[index], cell.send(meth), aggregate)
         end
 
         # if there are only colspanned or rowspanned cells in a table
@@ -139,7 +142,7 @@ module Prawn
 
         @cells.each do |cell|
           index = cell.send(row_or_column)
-          if cell.colspan > 1
+          if cell.colspan > 1 && row_or_column == :column
             #special treatment if some but not all spanned indices in the values array have been calculated
             #only applies to rows
             values = fill_values_if_needed(values, cell, index, meth) if row_or_column == :column
