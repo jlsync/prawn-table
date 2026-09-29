@@ -1,5 +1,6 @@
 ## Master
 
+* Bugfix: A table's height (and a row's `height_with_span`) now counts a cell with `colspan > 1` towards its own row. The height was short by the difference between that row and the next, so a subtable with such a row was squeezed into too small a cell and its last row spilled onto a new page. (issue [#10](https://github.com/prawnpdf/prawn-table/issues/10))
 * Stroke the borders of all cells on a page together, as one path per run of same-styled borders, with edges shared by adjacent cells written once. Large tables render noticeably faster and produce smaller PDFs with the same appearance, except that overlapping border corners and shared edges are no longer painted twice (visible only with transparency). Pass `batch_borders: false` to a table to draw each cell's borders just before its content, as before. Cells that override `draw_borders` still have it called.
 * Require Ruby 3.3 or later. CI tests MRI 3.3, 4.0 and head, and JRuby 10.0 and 10.1, against the jlsync forks of prawn, pdf-core and ttfunk.
 * Bugfix: Use a cell's custom style over table styles. (PR [#143](https://github.com/prawnpdf/prawn-table/pull/143), issue [#56](https://github.com/prawnpdf/prawn-table/issues/56))

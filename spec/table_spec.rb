@@ -1395,7 +1395,7 @@ describe "Prawn::Table" do
     end
   end
 
-  it "Prints table on one page when using subtable with colspan > 1", :unresolved, issue: 10 do
+  it "Prints table on one page when using subtable with colspan > 1", issue: 10 do
     pdf = Prawn::Document.new(margin: [ 30, 71, 55, 71])
 
     lines = "one\ntwo\nthree\nfour"
@@ -1419,6 +1419,18 @@ describe "Prawn::Table" do
 
     pdf.render
     expect(pdf.page_count).to eq 1
+  end
+
+  it "measures its height as the sum of its rows when a row has colspan > 1", issue: 10 do
+    pdf = Prawn::Document.new
+    t = pdf.make_table([
+      [{ :content => "one", :colspan => 2, :size => 11 }],
+      ["a", "b"],
+      ["c", "d"],
+    ])
+
+    expect(t.height).to be_within(0.0001).of(t.row_heights.sum)
+    expect(t.row(0).height_with_span).to be_within(0.0001).of(t.row_heights[0])
   end
 
   describe "An invalid table" do
