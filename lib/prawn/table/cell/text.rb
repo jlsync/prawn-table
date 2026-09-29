@@ -24,7 +24,7 @@ module Prawn
           define_method(option) { @text_options[option] }
         end
 
-        HEIGHT_CACHE_LIMIT = 256
+        HEIGHT_CACHE_LIMIT = 2048
         HEIGHT_CACHE_MAX_TEXT_BYTES = 128
         private_constant :HEIGHT_CACHE_LIMIT, :HEIGHT_CACHE_MAX_TEXT_BYTES
 
@@ -163,16 +163,20 @@ module Prawn
         # Hash snapshots string keys; option snapshots protect against changes
         # to a cell after measurement. Fixed bounds make the available height
         # unambiguous, and custom text layout keeps its existing behavior.
+        # Inline-formatted text is parsed by Prawn's own formatter from the
+        # string and the :inline_format option alone, both part of the key.
         def natural_height_cache
           return unless instance_of?(Text)
-          return if @text_options[:inline_format] ||
-            @content.bytesize > HEIGHT_CACHE_MAX_TEXT_BYTES
+          return if @content.bytesize > HEIGHT_CACHE_MAX_TEXT_BYTES
+          return if @text_options[:inline_format] &&
+            !@pdf.text_formatter.equal?(::Prawn::Text::Formatted::Parser)
 
           cache = @pdf.instance_variable_get(:@prawn_table_text_heights) ||
             @pdf.instance_variable_set(:@prawn_table_text_heights, {})
           return if cache.size >= HEIGHT_CACHE_LIMIT && !cache.key?(@content)
           return if @pdf.bounds.stretchy? || !@pdf.fallback_fonts.empty? ||
-            !::Prawn::Text::Box.extensions.empty?
+            !::Prawn::Text::Box.extensions.empty? ||
+            !::Prawn::Text::Formatted::Box.extensions.empty?
 
           cache
         end

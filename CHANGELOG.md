@@ -1,5 +1,6 @@
 ## Master
 
+* Reuse cell height measurements for inline-formatted text too, when the document uses Prawn's own text formatter, and keep up to 2048 short strings per document instead of 256. Reports made of many small tables with repeated `inline_format` values measure each distinct string once instead of rendering every cell twice: a 231-page timeline-style report renders about 15% faster with identical output.
 * Stroke the borders of all cells on a page together, as one path per run of same-styled borders, with edges shared by adjacent cells written once. Large tables render noticeably faster and produce smaller PDFs with the same appearance, except that overlapping border corners and shared edges are no longer painted twice (visible only with transparency). Pass `batch_borders: false` to a table to draw each cell's borders just before its content, as before. Cells that override `draw_borders` still have it called.
 * Require Ruby 3.3 or later. CI tests MRI 3.3, 4.0 and head, and JRuby 10.0 and 10.1, against the jlsync forks of prawn, pdf-core and ttfunk.
 * Bugfix: Use a cell's custom style over table styles. (PR [#143](https://github.com/prawnpdf/prawn-table/pull/143), issue [#56](https://github.com/prawnpdf/prawn-table/issues/56))
