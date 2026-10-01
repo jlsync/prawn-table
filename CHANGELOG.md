@@ -1,5 +1,13 @@
 ## Master
 
+* Reduce object allocations and improve layout performance across table construction, sizing, and rendering:
+  - Cache whether `draw_borders` is overridden per cell class, avoiding `Method` object allocations during batched border rendering.
+  - Eliminate array allocations on text cell height cache hits via field-by-field short-circuiting.
+  - Include `Cell::InTable` in `Cell` to avoid creating per-cell singleton classes and invalidating method caches via `extend`.
+  - Use $O(1)$ coordinate grid mapping in `Cells#[]` instead of linear row/column scans.
+  - Track table dimensions incrementally in `make_cells`, eliminating two full-table passes and intermediate array allocations.
+  - Avoid redundant width recalculations in `Table#column_widths` and avoid $2(R + C)$ temporary `Cells` wrapper allocations during table layout.
+  - Optimize `ColumnWidthCalculator` with direct `sum` lookups for colspans and skip dummy checks when tables contain no spans.
 * Add `batch_borders: :by_style`, which strokes all borders of each style (line, width and color) as a single path per table page, thinnest first, so where borders of different styles meet the thicker one is on top, as with collapsed borders in HTML tables. Tables whose border style alternates, such as a thick outline around thin inner borders, then write two stroke operators instead of one per border or two: a timeline-style report of small outlined tables renders about 7% faster.
 * Reuse cell height measurements between bounding boxes of the same size at different positions on the page. The cache compared each box's absolute position, which doesn't affect the measured height in a fixed-size box, so tables drawn in their own bounding boxes (one per section of a report, say) were measured again for every table.
 * Bugfix: A table's height (and a row's `height_with_span`) now counts a cell with `colspan > 1` towards its own row. The height was short by the difference between that row and the next, so a subtable with such a row was squeezed into too small a cell and its last row spilled onto a new page. (issue [#10](https://github.com/prawnpdf/prawn-table/issues/10))

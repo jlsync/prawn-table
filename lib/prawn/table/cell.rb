@@ -71,11 +71,12 @@ module Prawn
         # Sum up the largest min-width from each column, including myself.
         min_widths = Hash.new(0)
         dummy_cells.each do |cell|
-          min_widths[cell.column] =
-            [min_widths[cell.column], cell.min_width].max
+          mw = cell.min_width
+          min_widths[cell.column] = mw if mw > min_widths[cell.column]
         end
-        min_widths[column] = [min_widths[column], min_width_ignoring_span].max
-        min_widths.values.inject(0, &:+)
+        mw = min_width_ignoring_span
+        min_widths[column] = mw if mw > min_widths[column]
+        min_widths.each_value.sum
       end
 
       # Min-width of the span divided by the number of columns.
@@ -105,7 +106,7 @@ module Prawn
             [max_widths[cell.column], cell.max_width].min
         end
         max_widths[column] = [max_widths[column], max_width_ignoring_span].min
-        max_widths.values.inject(0, &:+)
+        max_widths.each_value.sum
       end
 
       # Manually specify the cell's height.
@@ -173,7 +174,7 @@ module Prawn
           content = options[:content]
         end
 
-        content = content.to_s if stringify_content?(content)
+        content = content.to_s if !content.is_a?(String) && stringify_content?(content)
         options[:content] = content
 
         case content
@@ -275,11 +276,12 @@ module Prawn
         # the master cell) and sum each column.
         column_widths = Hash.new(0)
         dummy_cells.each do |cell|
-          column_widths[cell.column] =
-            [column_widths[cell.column], cell.width].max
+          cw = cell.width
+          column_widths[cell.column] = cw if cw > column_widths[cell.column]
         end
-        column_widths[column] = [column_widths[column], width_ignoring_span].max
-        column_widths.values.inject(0, &:+)
+        cw = width_ignoring_span
+        column_widths[column] = cw if cw > column_widths[column]
+        column_widths.each_value.sum
       end
 
       # Manually sets the cell's width, inclusive of padding.
@@ -332,10 +334,12 @@ module Prawn
         # master cell) and sum each row.
         row_heights = Hash.new(0)
         dummy_cells.each do |cell|
-          row_heights[cell.row] = [row_heights[cell.row], cell.height].max
+          rh = cell.height
+          row_heights[cell.row] = rh if rh > row_heights[cell.row]
         end
-        row_heights[row] = [row_heights[row], height_ignoring_span].max
-        row_heights.values.inject(0, &:+)
+        rh = height_ignoring_span
+        row_heights[row] = rh if rh > row_heights[row]
+        row_heights.each_value.sum
       end
 
       # Returns the height of the bare content in the cell, excluding padding.
@@ -428,7 +432,11 @@ module Prawn
       # #draw_borders still have it called, in order, just before their
       # content. (A positional argument, so existing wrappers that forward
       # <tt>*args</tt> keep working.)
-      #
+      DRAW_BORDERS_UNOVERRIDDEN = Hash.new do |hash, klass|
+        hash[klass] = klass.instance_method(:draw_borders).owner.equal?(Cell)
+      end
+      private_constant :DRAW_BORDERS_UNOVERRIDDEN
+
       def self.draw_cells(cells, batch_borders = false)
         cells.each do |cell, pt|
           cell.set_width_constraints
@@ -443,7 +451,13 @@ module Prawn
           return
         end
 
-        batched = cells.map { |cell, _| cell.method(:draw_borders).owner.equal?(Cell) }
+        batched = cells.map do |cell, _|
+          if cell.singleton_methods.empty?
+            DRAW_BORDERS_UNOVERRIDDEN[cell.class]
+          else
+            cell.method(:draw_borders).owner.equal?(Cell)
+          end
+        end
         if (first = batched.index(true))
           batch = BorderBatch.new(cells[first][0].document,
             by_style: batch_borders == :by_style)

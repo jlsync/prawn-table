@@ -895,4 +895,11 @@ describe "Image cells" do
     end
   end
 
+  describe "Performance and allocation optimizations" do
+    it "includes Cell::InTable on Cell" do
+      c = @pdf.make_cell("hello")
+      expect(c).to be_a(Prawn::Table::Cell::InTable)
+    end
+  end
+
 end

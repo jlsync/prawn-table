@@ -28,6 +28,7 @@ module Prawn
 
       end
 
+      include InTable
     end
   end
 end

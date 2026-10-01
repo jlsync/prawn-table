@@ -70,41 +70,47 @@ module Prawn
       end
 
       def natural_widths
-        #calculate natural column width for all rows that do not include a span dummy
-        @cells.each do |cell|
-          unless has_a_span_dummy?(cell.row)
-            @widths_by_column[cell.column] =
-              [@widths_by_column[cell.column], cell.width.to_f].max
+        if @rows_with_a_span_dummy.empty?
+          @cells.each do |cell|
+            w = cell.width.to_f
+            @widths_by_column[cell.column] = w if w > @widths_by_column[cell.column]
           end
-        end
+        else
+          #calculate natural column width for all rows that do not include a span dummy
+          @cells.each do |cell|
+            unless has_a_span_dummy?(cell.row)
+              w = cell.width.to_f
+              @widths_by_column[cell.column] = w if w > @widths_by_column[cell.column]
+            end
+          end
 
-        #integrate natural column widths for all rows that do include a span dummy
-        @cells.each do |cell|
-          next unless has_a_span_dummy?(cell.row)
-          #the width of a SpanDummy cell will be calculated by the "mother" cell
-          next if cell.is_a?(Cell::SpanDummy)
+          #integrate natural column widths for all rows that do include a span dummy
+          @cells.each do |cell|
+            next unless has_a_span_dummy?(cell.row)
+            #the width of a SpanDummy cell will be calculated by the "mother" cell
+            next if cell.is_a?(Cell::SpanDummy)
 
-          if cell.colspan == 1
-            @widths_by_column[cell.column] =
-              [@widths_by_column[cell.column], cell.width.to_f].max
-          else
-            #calculate the current with of all cells that will be spanned by the current cell
-            current_width_of_spanned_cells =
-              @widths_by_column.to_a[cell.column..(cell.column + cell.colspan - 1)]
-                               .collect{|key, value| value}.inject(0, :+)
+            if cell.colspan == 1
+              w = cell.width.to_f
+              @widths_by_column[cell.column] = w if w > @widths_by_column[cell.column]
+            else
+              #calculate the current with of all cells that will be spanned by the current cell
+              current_width_of_spanned_cells =
+                (cell.column...(cell.column + cell.colspan)).sum { |c| @widths_by_column[c] }
 
-            #update the Hash only if the new with is at least equal to the old one
-            #due to arithmetic errors we need to ignore a small difference in the new and the old sum
-            #the same had to be done in the column_widht_calculator#natural_width
-            update_hash = ((cell.width.to_f - current_width_of_spanned_cells) >
-                           Prawn::FLOAT_PRECISION)
+              #update the Hash only if the new with is at least equal to the old one
+              #due to arithmetic errors we need to ignore a small difference in the new and the old sum
+              #the same had to be done in the column_widht_calculator#natural_width
+              update_hash = ((cell.width.to_f - current_width_of_spanned_cells) >
+                             Prawn::FLOAT_PRECISION)
 
-            if update_hash
-              # Split the width of colspanned cells evenly by columns
-              width_per_column = cell.width.to_f / cell.colspan
-              # Update the Hash
-              cell.colspan.times do |i|
-                @widths_by_column[cell.column + i] = width_per_column
+              if update_hash
+                # Split the width of colspanned cells evenly by columns
+                width_per_column = cell.width.to_f / cell.colspan
+                # Update the Hash
+                cell.colspan.times do |i|
+                  @widths_by_column[cell.column + i] = width_per_column
+                end
               end
             end
           end
@@ -133,7 +139,7 @@ module Prawn
           next if cell.class == Prawn::Table::Cell::SpanDummy
           next if row_or_column == :column && cell.colspan > 1
 
-          index = cell.send(row_or_column)
+          index = (row_or_column == :row ? cell.row : cell.column)
           values[index] = aggregate_value(values[index], cell.send(meth), aggregate)
         end
 
@@ -141,11 +147,10 @@ module Prawn
         spanned_width_needs_fixing = true
 
         @cells.each do |cell|
-          index = cell.send(row_or_column)
+          index = (row_or_column == :row ? cell.row : cell.column)
           if cell.colspan > 1 && row_or_column == :column
             #special treatment if some but not all spanned indices in the values array have been calculated
-            #only applies to rows
-            values = fill_values_if_needed(values, cell, index, meth) if row_or_column == :column
+            values = fill_values_if_needed(values, cell, index, meth)
             #calculate current (old) return value before we do anything
             old_sum = 0
             cell.colspan.times { |i|
@@ -177,7 +182,7 @@ module Prawn
           end
         end
 
-        return values.values.inject(0, &:+)
+        values.each_value.sum
       end
 
       private

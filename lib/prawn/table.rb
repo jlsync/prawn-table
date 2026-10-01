@@ -351,29 +351,32 @@ module Prawn
     #
     def column_widths
       @column_widths ||= begin
-        if width - cells.min_width < -Prawn::FLOAT_PRECISION
+        min_w = cells.min_width
+        if width - min_w < -Prawn::FLOAT_PRECISION
           raise Errors::CannotFit,
             "Table's width was set too small to contain its contents " +
-            "(min width #{cells.min_width}, requested #{width})"
+            "(min width #{min_w}, requested #{width})"
         end
 
-        if width - cells.max_width > Prawn::FLOAT_PRECISION
+        max_w = cells.max_width
+        if width - max_w > Prawn::FLOAT_PRECISION
           raise Errors::CannotFit,
             "Table's width was set larger than its contents' maximum width " +
-            "(max width #{cells.max_width}, requested #{width})"
+            "(max width #{max_w}, requested #{width})"
         end
 
-        if width - natural_width < -Prawn::FLOAT_PRECISION
+        nat_w = natural_width
+        if width - nat_w < -Prawn::FLOAT_PRECISION
           # Shrink the table to fit the requested width.
-          f = (width - cells.min_width).to_f / (natural_width - cells.min_width)
+          f = (width - min_w).to_f / (nat_w - min_w)
 
           (0...column_length).map do |c|
             min, nat = column(c).min_width, natural_column_widths[c]
             (f * (nat - min)) + min
           end
-        elsif width - natural_width > Prawn::FLOAT_PRECISION
+        elsif width - nat_w > Prawn::FLOAT_PRECISION
           # Expand the table to fit the requested width.
-          f = (width - cells.width).to_f / (cells.max_width - cells.width)
+          f = (width - nat_w).to_f / (max_w - nat_w)
 
           (0...column_length).map do |c|
             nat, max = natural_column_widths[c], column(c).max_width
@@ -397,11 +400,11 @@ module Prawn
             # Split the height of row-spanned cells evenly by rows
             height_per_row = cell.height.to_f / cell.rowspan
             cell.rowspan.times do |i|
-              heights_by_row[cell.row + i] =
-                [heights_by_row[cell.row + i], height_per_row].max
+              r = cell.row + i
+              heights_by_row[r] = height_per_row if height_per_row > heights_by_row[r]
             end
           end
-          heights_by_row.sort_by { |row, _| row }.map { |_, h| h }
+          (0...row_length).map { |row| heights_by_row[row] }
         end
     end
 
@@ -538,6 +541,9 @@ module Prawn
       assert_proper_table_data(data)
 
       cells = Cells.new
+      has_rowspans = false
+      max_row = 0
+      max_col = 0
 
       row_number = 0
       data.each do |row_cells|
@@ -545,35 +551,46 @@ module Prawn
         row_cells.each do |cell_data|
           # If we landed on a spanned cell (from a rowspan above), continue
           # until we find an empty spot.
-          column_number += 1 until cells[row_number, column_number].nil?
+          if has_rowspans
+            column_number += 1 until cells[row_number, column_number].nil?
+          end
 
           # Build the cell and store it in the Cells collection.
           cell = if cell_data.is_a?(Hash)
-                   Cell.make(@pdf, cell_style.merge(cell_data))
+                   Cell.make(@pdf, cell_style.empty? ? cell_data : cell_style.merge(cell_data))
                  else
                    Cell.make(@pdf, cell_data, cell_style)
                  end
           cells[row_number, column_number] = cell
+
+          r_end = row_number + cell.rowspan
+          c_end = column_number + cell.colspan
+          max_row = r_end if r_end > max_row
+          max_col = c_end if c_end > max_col
 
           # Add dummy cells for the rest of the cells in the span group. This
           # allows Prawn to keep track of the horizontal and vertical space
           # occupied in each column and row spanned by this cell, while still
           # leaving the master (top left) cell in the group responsible for
           # drawing. Dummy cells do not put ink on the page.
-          cell.rowspan.times do |i|
-            cell.colspan.times do |j|
-              next if i == 0 && j == 0
+          if cell.rowspan > 1 || cell.colspan > 1
+            has_rowspans = true if cell.rowspan > 1
 
-              # It is an error to specify spans that overlap; catch this here
-              if cells[row_number + i, column_number + j]
-                raise Prawn::Errors::InvalidTableSpan,
-                  "Spans overlap at row #{row_number + i}, " +
-                  "column #{column_number + j}."
+            cell.rowspan.times do |i|
+              cell.colspan.times do |j|
+                next if i == 0 && j == 0
+
+                # It is an error to specify spans that overlap; catch this here
+                if cells[row_number + i, column_number + j]
+                  raise Prawn::Errors::InvalidTableSpan,
+                    "Spans overlap at row #{row_number + i}, " +
+                    "column #{column_number + j}."
+                end
+
+                dummy = Cell::SpanDummy.new(@pdf, cell)
+                cells[row_number + i, column_number + j] = dummy
+                cell.dummy_cells << dummy
               end
-
-              dummy = Cell::SpanDummy.new(@pdf, cell)
-              cells[row_number + i, column_number + j] = dummy
-              cell.dummy_cells << dummy
             end
           end
 
@@ -586,13 +603,8 @@ module Prawn
       # Calculate the number of rows and columns in the table, taking into
       # account that some cells may span past the end of the physical cells we
       # have.
-      @row_length = cells.map do |cell|
-        cell.row + cell.rowspan
-      end.max
-
-      @column_length = cells.map do |cell|
-        cell.column + cell.colspan
-      end.max
+      @row_length = max_row
+      @column_length = max_col
 
       cells
     end
@@ -664,7 +676,7 @@ module Prawn
     # a mile long.
     #
     def natural_width
-      @natural_width ||= natural_column_widths.inject(0, &:+)
+      @natural_width ||= natural_column_widths.sum
     end
 
     # Assigns the calculated column widths to each cell. This ensures that each
@@ -673,32 +685,31 @@ module Prawn
     # values that will be used to ink the table.
     #
     def set_column_widths
-      column_widths.each_with_index do |w, col_num|
-        column(col_num).width = w
-      end
+      col_widths = column_widths
+      cells.each { |c| c.width = col_widths[c.column] }
     end
 
     # Assigns the row heights to each cell. This ensures that every cell in a
     # row is the same height.
     #
     def set_row_heights
-      row_heights.each_with_index { |h, row_num| row(row_num).height = h }
+      r_heights = row_heights
+      cells.each { |c| c.height = r_heights[c.row] }
     end
 
     # Set each cell's position based on the widths and heights of cells
     # preceding it.
     #
     def position_cells
-      # Calculate x- and y-positions as running sums of widths / heights.
-      x_positions = column_widths.inject([0]) { |ary, x|
-        ary << (ary.last + x); ary }[0..-2]
-      x_positions.each_with_index { |x, i| column(i).x = x }
+      x = 0
+      x_positions = column_widths.map { |w| pos = x; x += w; pos }
+      y = 0
+      y_positions = row_heights.map { |h| pos = y; y -= h; pos }
 
-      # y-positions assume an infinitely long canvas starting at zero -- this
-      # is corrected for in Table#draw, and page breaks are properly inserted.
-      y_positions = row_heights.inject([0]) { |ary, y|
-        ary << (ary.last - y); ary}[0..-2]
-      y_positions.each_with_index { |y, i| row(i).y = y }
+      cells.each do |c|
+        c.x = x_positions[c.column]
+        c.y = y_positions[c.row]
+      end
     end
 
     # Sets up a bounding box to position the table according to the specified

@@ -109,24 +109,20 @@ module Prawn
       def [](row, col)
         return nil if empty?
         index_cells unless defined?(@indexed) && @indexed
-        row_array, col_array = @rows[@first_row + row] || [], @columns[@first_column + col] || []
-        if row_array.length < col_array.length
-          row_array.find { |c| c.column == @first_column + col }
-        else
-          col_array.find { |c| c.row == @first_row + row }
-        end
+        @grid[[@first_row + row, @first_column + col]]
       end
 
       # Puts a cell in the collection at the given position. Internal use only.
       #
       def []=(row, col, cell) # :nodoc:
-        cell.extend(Cell::InTable)
+        cell.extend(Cell::InTable) unless cell.is_a?(Cell::InTable)
         cell.row = row
         cell.column = col
 
         if defined?(@indexed) && @indexed
           (@rows[row]    ||= []) << cell
           (@columns[col] ||= []) << cell
+          @grid[[row, col]] = cell
           @first_row    = row if !@first_row    || row < @first_row
           @first_column = col if !@first_column || col < @first_column
           @row_count    = @rows.size
@@ -160,7 +156,7 @@ module Prawn
       # Returns the total width of all columns in the selected set.
       #
       def width
-        ColumnWidthCalculator.new(self).natural_widths.inject(0, &:+)
+        ColumnWidthCalculator.new(self).natural_widths.sum
       end
 
       # Returns minimum width required to contain cells in the set.
@@ -211,17 +207,21 @@ module Prawn
       def index_cells
         @rows = {}
         @columns = {}
+        @grid = {}
+        first_row = nil
+        first_column = nil
 
         each do |cell|
-          @rows[cell.row] ||= []
-          @rows[cell.row] << cell
+          (@rows[cell.row] ||= []) << cell
+          (@columns[cell.column] ||= []) << cell
+          @grid[[cell.row, cell.column]] = cell
 
-          @columns[cell.column] ||= []
-          @columns[cell.column] << cell
+          first_row = cell.row if !first_row || cell.row < first_row
+          first_column = cell.column if !first_column || cell.column < first_column
         end
 
-        @first_row    = @rows.keys.min
-        @first_column = @columns.keys.min
+        @first_row    = first_row
+        @first_column = first_column
 
         @row_count    = @rows.size
         @column_count = @columns.size
