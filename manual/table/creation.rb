@@ -1,5 +1,5 @@
-# encoding: utf-8
-#
+# frozen_string_literal: true
+
 # Creating tables with Prawn is fairly easy. There are two methods that will
 # create tables for us <code>table</code> and <code>make_table</code>.
 #

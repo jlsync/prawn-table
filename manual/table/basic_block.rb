@@ -1,5 +1,5 @@
-# encoding: utf-8
-#
+# frozen_string_literal: true
+
 # All of the previous styling options we've seen deal with all the table cells
 # at once.
 #

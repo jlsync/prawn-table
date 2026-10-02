@@ -1,4 +1,4 @@
-# encoding: utf-8
+# frozen_string_literal: true
 
 require File.join(File.expand_path(File.dirname(__FILE__)), "spec_helper")
 require_relative "../lib/prawn/table"
@@ -671,7 +671,7 @@ describe "Prawn::Table::Cell" do
     end
 
     it "snapshots content so later mutations cannot corrupt earlier entries" do
-      text = 'Short'
+      text = +'Short'
       original_height = height_cell(:content => text).natural_content_height
       text.replace('Some text that wraps onto several lines')
       changed = height_cell(:content => text)

@@ -1,5 +1,5 @@
-# encoding: utf-8
-#
+# frozen_string_literal: true
+
 # The <code>borders</code> option accepts an array with the border sides that
 # will be drawn. The default is <code>[:top, :bottom, :left, :right]</code>.
 #

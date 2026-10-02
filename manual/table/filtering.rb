@@ -1,5 +1,5 @@
-# encoding: utf-8
-#
+# frozen_string_literal: true
+
 # Another way to reduce the number of cells is to <code>filter</code> the table.
 #
 # <code>filter</code> is just like <code>Enumerable#select</code>. Pass it a

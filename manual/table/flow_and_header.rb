@@ -1,5 +1,5 @@
-# encoding: utf-8
-#
+# frozen_string_literal: true
+
 # If the table cannot fit on the current page it will flow to the next page just
 # like free flowing text. If you would like to have the first row treated as a
 # header which will be repeated on subsequent pages set the <code>:header</code>

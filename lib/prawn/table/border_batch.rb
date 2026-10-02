@@ -1,4 +1,4 @@
-# encoding: utf-8
+# frozen_string_literal: true
 
 # border_batch.rb: Strokes the borders of many cells at once.
 #

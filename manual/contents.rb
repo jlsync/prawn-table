@@ -1,5 +1,5 @@
-# encoding: utf-8
-#
+# frozen_string_literal: true
+
 # Generates the Prawn by example manual.
 
 require_relative "example_helper"

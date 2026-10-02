@@ -1,5 +1,5 @@
-# encoding: utf-8
-#
+# frozen_string_literal: true
+
 # Prawn will make its best attempt to identify the best width for the columns.
 # If the end result isn't good, we can override it with some styling.
 #

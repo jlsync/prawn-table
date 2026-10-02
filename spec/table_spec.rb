@@ -1,4 +1,4 @@
-# encoding: utf-8
+# frozen_string_literal: true
 
 # run rspec -t issue:XYZ  to run tests for a specific github issue
 # or  rspec -t unresolved to run tests for all unresolved issues

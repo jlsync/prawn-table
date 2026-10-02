@@ -1,5 +1,5 @@
-# encoding: utf-8
-#
+# frozen_string_literal: true
+
 # We've seen how to apply styles to a selection of cells by setting the
 # individual properties. Another option is to use the <code>style</code> method
 #

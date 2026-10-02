@@ -1,5 +1,5 @@
-# encoding: utf-8
-#
+# frozen_string_literal: true
+
 # To style all the table cells you can use the <code>:cell_style</code> option
 # with the table methods. It accepts a hash with the cell style options.
 #

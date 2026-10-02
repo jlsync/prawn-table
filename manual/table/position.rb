@@ -1,5 +1,5 @@
-# encoding: utf-8
-#
+# frozen_string_literal: true
+
 # The <code>table()</code> method accepts a <code>:position</code> argument to
 # determine horizontal position of the table within its bounding box. It can be
 # <code>:left</code> (the default), <code>:center</code>, <code>:right</code>,
