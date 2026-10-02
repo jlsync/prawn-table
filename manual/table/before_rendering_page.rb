@@ -1,5 +1,5 @@
-# encoding: utf-8
-#
+# frozen_string_literal: true
+
 # <code>Prawn::Table#initialize</code> takes a
 # <code>:before_rendering_page</code> argument, to adjust the way an entire page
 # of table cells is styled. This allows you to do things like draw a border

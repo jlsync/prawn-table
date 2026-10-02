@@ -1,5 +1,5 @@
-# encoding: utf-8
-#
+# frozen_string_literal: true
+
 # Table cells can span multiple columns, rows, or both. When building a cell,
 # use the hash argument constructor with a <code>:colspan</code> and/or
 # <code>:rowspan</code> argument. Row or column spanning must be specified when

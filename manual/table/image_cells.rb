@@ -1,5 +1,5 @@
-# encoding: utf-8
-#
+# frozen_string_literal: true
+
 # Prawn can insert images into a table. Just pass a hash into
 # <code>table()</code> with an <code>:image</code> key pointing to the image.
 #

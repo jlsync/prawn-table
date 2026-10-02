@@ -1,5 +1,5 @@
-# encoding: utf-8
-#
+# frozen_string_literal: true
+
 # One of the most common table styling techniques is to stripe the rows with
 # alternating colors.
 #

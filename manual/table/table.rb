@@ -1,5 +1,5 @@
-# encoding: utf-8
-#
+# frozen_string_literal: true
+
 # Examples for tables.
 #
 require File.expand_path(File.join(File.dirname(__FILE__),

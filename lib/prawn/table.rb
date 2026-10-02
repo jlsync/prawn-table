@@ -1,5 +1,5 @@
-# encoding: utf-8
-#
+# frozen_string_literal: true
+
 # table.rb: Table drawing functionality.
 #
 # Copyright December 2009, Brad Ediger. All rights reserved.

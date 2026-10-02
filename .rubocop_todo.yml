@@ -900,18 +900,6 @@ Style/EmptyMethod:
   Exclude:
     - 'lib/prawn/table/cell/span_dummy.rb'
 
-# Offense count: 34
-# This cop supports safe autocorrection (--autocorrect).
-Style/Encoding:
-  Enabled: false
-
-# Offense count: 38
-# This cop supports unsafe autocorrection (--autocorrect-all).
-# Configuration parameters: EnforcedStyle.
-# SupportedStyles: always, always_true, never
-Style/FrozenStringLiteralComment:
-  Enabled: false
-
 # Offense count: 472
 # This cop supports safe autocorrection (--autocorrect).
 # Configuration parameters: EnforcedStyle, EnforcedShorthandSyntax, UseHashRocketsWithSymbolValues, PreferHashRocketsForNonAlnumEndingSymbols.

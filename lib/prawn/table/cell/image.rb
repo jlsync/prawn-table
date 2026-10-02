@@ -1,4 +1,4 @@
-# encoding: utf-8
+# frozen_string_literal: true
 
 # image.rb: Table image cells.
 #

@@ -1,5 +1,5 @@
-# encoding: utf-8
-#
+# frozen_string_literal: true
+
 # There are five kinds of objects which can be put in table cells:
 #   1. String: produces a text cell (the most common usage)
 #   2. <code>Prawn::Table::Cell</code>

@@ -1,5 +1,7 @@
+# frozen_string_literal: true
+
 module Prawn
   class Table
-    VERSION = '0.2.3'.freeze
+    VERSION = '0.2.3'
   end
 end

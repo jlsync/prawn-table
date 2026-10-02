@@ -1,5 +1,5 @@
-# encoding: utf-8
-#
+# frozen_string_literal: true
+
 # The <code>border_lines</code> option accepts an array with the styles of the
 # border sides. The default is <code>[:solid, :solid, :solid, :solid]</code>.
 #

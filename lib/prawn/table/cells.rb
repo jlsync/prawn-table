@@ -1,4 +1,4 @@
-# encoding: utf-8
+# frozen_string_literal: true
 
 # cells.rb: Methods for accessing rows, columns, and cells of a Prawn::Table.
 #

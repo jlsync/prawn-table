@@ -1,5 +1,5 @@
-# encoding: utf-8
-#
+# frozen_string_literal: true
+
 # Text cells accept the following options: <code>align</code>,
 # <code>font</code>, <code>font_style</code>, <code>inline_format</code>,
 # <code>kerning</code>, <code>leading</code>, <code>min_font_size</code>,

@@ -1,5 +1,5 @@
-# encoding: utf-8
-#
+# frozen_string_literal: true
+
 # The default table width depends on the content provided. It will expand up
 # to the current bounding box width to fit the content. If you want the table to
 # have a fixed width no matter the content you may use the <code>:width</code>
