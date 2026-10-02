@@ -27,7 +27,7 @@ Gem::Specification.new do |spec|
   spec.add_development_dependency('rspec', '~> 3.0')
   spec.add_development_dependency('rake')
   spec.add_development_dependency('simplecov')
-  spec.add_development_dependency('prawn-dev', '~> 0.6.0')
+  spec.add_development_dependency('prawn-dev', '~> 0.7.0')
   spec.add_development_dependency('prawn-manual_builder', ">= 0.2.0")
   spec.add_development_dependency('pdf-reader', '~>1.2')
 
