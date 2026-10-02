@@ -118,8 +118,12 @@ module Prawn
         classes = (@standard_coordinate_cell_classes ||= Hash.new do |h, k|
           h[k] = k.method_defined?(:row) &&
                  k.method_defined?(:column) &&
+                 k.method_defined?(:row=) &&
+                 k.method_defined?(:column=) &&
                  k.instance_method(:row).owner.equal?(Cell::InTable) &&
-                 k.instance_method(:column).owner.equal?(Cell::InTable)
+                 k.instance_method(:column).owner.equal?(Cell::InTable) &&
+                 k.instance_method(:row=).owner.equal?(Cell::InTable) &&
+                 k.instance_method(:column=).owner.equal?(Cell::InTable)
         end)
         unless cell.singleton_methods.empty? && classes[cell.class]
           cell.singleton_class.prepend(Cell::InTable)

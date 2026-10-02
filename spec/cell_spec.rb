@@ -933,6 +933,30 @@ describe "Image cells" do
       Prawn::Table::Cell.draw_cells([[cell2, [0, 0]]], true)
       expect(draw_count).to eq(1)
     end
+
+    it "ensures table coordinates take precedence for custom subclasses overriding only row=/column=" do
+      custom_class =
+        Class.new(Prawn::Table::Cell::Text) do
+          def row=(val)
+            @custom_row = val
+          end
+
+          def column=(val)
+            @custom_col = val
+          end
+        end
+
+      cell = custom_class.new(@pdf, [0, 0], content: "custom")
+      table = @pdf.make_table([[cell]])
+      expect(table.cells[0, 0].row).to eq(0)
+      expect(table.cells[0, 0].column).to eq(0)
+    end
+
+    it "preserves inline_format in text_options after measuring width" do
+      cell = @pdf.make_cell("<b>hello</b>", inline_format: true)
+      cell.natural_content_width
+      expect(cell.inline_format).to be true
+    end
   end
 
 end

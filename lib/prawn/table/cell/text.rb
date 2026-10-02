@@ -161,7 +161,7 @@ module Prawn
         # Returns the width of +text+ under the given text options.
         #
         def styled_width_of(text)
-          options = @text_options.key?(:style) ? @text_options.except(:style) : @text_options
+          options = @text_options.except(:style)
           with_font { @pdf.width_of(text, options) }
         end
 
