@@ -115,7 +115,15 @@ module Prawn
       # Puts a cell in the collection at the given position. Internal use only.
       #
       def []=(row, col, cell) # :nodoc:
-        cell.extend(Cell::InTable) unless cell.is_a?(Cell::InTable)
+        classes = (@standard_coordinate_cell_classes ||= Hash.new do |h, k|
+          h[k] = k.method_defined?(:row) &&
+                 k.method_defined?(:column) &&
+                 k.instance_method(:row).owner.equal?(Cell::InTable) &&
+                 k.instance_method(:column).owner.equal?(Cell::InTable)
+        end)
+        unless cell.singleton_methods.empty? && classes[cell.class]
+          cell.singleton_class.prepend(Cell::InTable)
+        end
         cell.row = row
         cell.column = col
 

@@ -900,6 +900,39 @@ describe "Image cells" do
       c = @pdf.make_cell("hello")
       expect(c).to be_a(Prawn::Table::Cell::InTable)
     end
+
+    it "ensures table coordinates take precedence for custom subclasses with row/column" do
+      custom_class =
+        Class.new(Prawn::Table::Cell::Text) do
+          def row
+            :custom_row
+          end
+
+          def column
+            :custom_col
+          end
+        end
+
+      cell = custom_class.new(@pdf, [0, 0], content: "custom")
+      table = @pdf.make_table([[cell]])
+      expect(table.cells[0, 0].row).to eq(0)
+      expect(table.cells[0, 0].column).to eq(0)
+    end
+
+    it "dispatches to newly defined draw_borders after initial batched render" do
+      custom_class = Class.new(Prawn::Table::Cell::Text)
+      cell1 = custom_class.new(@pdf, [0, 0], content: "first")
+      Prawn::Table::Cell.draw_cells([[cell1, [0, 0]]], true)
+
+      draw_count = 0
+      custom_class.define_method(:draw_borders) do |_pt|
+        draw_count += 1
+      end
+
+      cell2 = custom_class.new(@pdf, [0, 0], content: "second")
+      Prawn::Table::Cell.draw_cells([[cell2, [0, 0]]], true)
+      expect(draw_count).to eq(1)
+    end
   end
 
 end

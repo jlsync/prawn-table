@@ -435,11 +435,6 @@ module Prawn
       # #draw_borders still have it called, in order, just before their
       # content. (A positional argument, so existing wrappers that forward
       # <tt>*args</tt> keep working.)
-      DRAW_BORDERS_UNOVERRIDDEN = Hash.new do |hash, klass|
-        hash[klass] = klass.instance_method(:draw_borders).owner.equal?(Cell)
-      end
-      private_constant :DRAW_BORDERS_UNOVERRIDDEN
-
       def self.draw_cells(cells, batch_borders = false)
         cells.each do |cell, pt|
           cell.set_width_constraints
@@ -454,9 +449,12 @@ module Prawn
           return
         end
 
+        unoverridden_classes = Hash.new do |h, k|
+          h[k] = k.instance_method(:draw_borders).owner.equal?(Cell)
+        end
         batched = cells.map { |cell, _|
           if cell.singleton_methods.empty?
-            DRAW_BORDERS_UNOVERRIDDEN[cell.class]
+            unoverridden_classes[cell.class]
           else
             cell.method(:draw_borders).owner.equal?(Cell)
           end
