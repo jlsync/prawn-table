@@ -7,6 +7,7 @@
 # This is free software. Please see the LICENSE and COPYING files for details.
 
 require 'date'
+require_relative 'cell/in_table'
 module Prawn
   class Document
 
@@ -50,6 +51,8 @@ module Prawn
     # lib/prawn/table/cell/*.rb for a template.
     #
     class Cell
+
+      include InTable
 
       # Amount of dead space (in PDF points) inside the borders but outside the
       # content. Padding defaults to 5pt.
@@ -451,13 +454,13 @@ module Prawn
           return
         end
 
-        batched = cells.map do |cell, _|
+        batched = cells.map { |cell, _|
           if cell.singleton_methods.empty?
             DRAW_BORDERS_UNOVERRIDDEN[cell.class]
           else
             cell.method(:draw_borders).owner.equal?(Cell)
           end
-        end
+        }
         if (first = batched.index(true))
           batch = BorderBatch.new(cells[first][0].document,
             by_style: batch_borders == :by_style)

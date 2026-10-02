@@ -64,14 +64,14 @@ module Prawn
             if cache && (entry = cache[@content])
               sig = entry[0]
               if sig[2] == spanned_content_width &&
-                 sig[1] == @pdf.font_size &&
-                 sig[0] == @pdf.font &&
-                 sig[3] == @pdf.bounds.height &&
-                 sig[4] == @pdf.character_spacing &&
-                 sig[5] == @pdf.default_leading &&
-                 sig[6] == @pdf.default_kerning? &&
-                 sig[7] == @pdf.text_direction &&
-                 sig[8] == @text_options
+                  sig[1] == @pdf.font_size &&
+                  sig[0] == @pdf.font &&
+                  sig[3] == @pdf.bounds.height &&
+                  sig[4] == @pdf.character_spacing &&
+                  sig[5] == @pdf.default_leading &&
+                  sig[6] == @pdf.default_kerning? &&
+                  sig[7] == @pdf.text_direction &&
+                  sig[8] == @text_options
                 return entry[1]
               end
             end

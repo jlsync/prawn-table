@@ -27,8 +27,6 @@ module Prawn
         attr_accessor :column
 
       end
-
-      include InTable
     end
   end
 end
