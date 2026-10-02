@@ -27,7 +27,6 @@ module Prawn
         attr_accessor :column
 
       end
-
     end
   end
 end

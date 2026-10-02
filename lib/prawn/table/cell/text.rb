@@ -61,20 +61,30 @@ module Prawn
         def natural_content_height
           with_font do
             cache = natural_height_cache
-            if cache
-              entry = cache[@content]
-              signature = [@pdf.font, @pdf.font_size, spanned_content_width,
-                @pdf.bounds.height, @pdf.character_spacing, @pdf.default_leading,
-                @pdf.default_kerning?, @pdf.text_direction, @text_options]
-              return entry[1] if entry && entry[0] == signature
+            if cache && (entry = cache[@content])
+              sig = entry[0]
+              if sig[2] == spanned_content_width &&
+                  sig[1] == @pdf.font_size &&
+                  sig[0] == @pdf.font &&
+                  sig[3] == @pdf.bounds.height &&
+                  sig[4] == @pdf.character_spacing &&
+                  sig[5] == @pdf.default_leading &&
+                  sig[6] == @pdf.default_kerning? &&
+                  sig[7] == @pdf.text_direction &&
+                  sig[8] == @text_options
+                return entry[1]
+              end
             end
 
             b = text_box(:width => spanned_content_width + FPTolerance)
             b.render(:dry_run => true)
             height = b.height + b.line_gap
 
-            if signature
-              signature[-1] = @text_options.transform_values(&:dup)
+            if cache
+              signature = [@pdf.font, @pdf.font_size, spanned_content_width,
+                @pdf.bounds.height, @pdf.character_spacing, @pdf.default_leading,
+                @pdf.default_kerning?, @pdf.text_direction,
+                @text_options.transform_values(&:dup)]
               cache[@content] = [signature, height]
             end
             height
