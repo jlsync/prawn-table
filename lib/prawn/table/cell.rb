@@ -218,8 +218,15 @@ module Prawn
       # Cache of option name => setter Symbol, so that `style` does not have to
       # interpolate a fresh String in order to intern one. Setter names are
       # stable for the life of the process and only a handful of cell options
-      # ever appear, so this stays tiny. Held per class rather than as a
-      # constant because it is filled lazily.
+      # ever appear, so this stays tiny.
+      #
+      # Deliberately reached as Cell.setter_names rather than through
+      # self.class: `initialize` always calls `style`, so a subclass that
+      # happens to define its own class method named `setter_names` would
+      # otherwise be dispatched to instead, and a non-Hash return would raise
+      # during table construction. For the same reason this is one shared map
+      # rather than a per-class one -- the mapping is identical for every cell
+      # class, and keying by class would retain a reference to each.
       #
       # @api private
       def self.setter_names
@@ -262,7 +269,7 @@ module Prawn
       #
       def style(options={}, &block)
         options.each do |k, v|
-          setter = self.class.setter_names[k]
+          setter = Cell.setter_names[k]
           if setter.nil?
             # Interpolating `k` builds a String before it can be interned, so
             # the resulting Symbol is cached rather than rebuilt per cell.
@@ -271,7 +278,7 @@ module Prawn
             # unknown names by design, and caching those would pin every
             # distinct name -- and its Symbol -- for the life of the process.
             setter = :"#{k}="
-            self.class.setter_names[k] = setter if respond_to?(setter)
+            Cell.setter_names[k] = setter if respond_to?(setter)
           end
 
           # respond_to? is still consulted on every call. The cache is keyed
