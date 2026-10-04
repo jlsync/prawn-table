@@ -215,6 +215,24 @@ module Prawn
 
       FPTolerance = 1
 
+      # Cache of option name => setter Symbol, so that `style` does not have to
+      # interpolate a fresh String in order to intern one. Setter names are
+      # stable for the life of the process and only a handful of cell options
+      # ever appear, so this stays tiny.
+      #
+      # Deliberately reached as Cell.setter_names rather than through
+      # self.class: `initialize` always calls `style`, so a subclass that
+      # happens to define its own class method named `setter_names` would
+      # otherwise be dispatched to instead, and a non-Hash return would raise
+      # during table construction. For the same reason this is one shared map
+      # rather than a per-class one -- the mapping is identical for every cell
+      # class, and keying by class would retain a reference to each.
+      #
+      # @api private
+      def self.setter_names
+        @setter_names ||= {}
+      end
+
       # Sets up a cell on the document +pdf+, at the given x/y location +point+,
       # with the given +options+. Cell, like Table, follows the "options set
       # accessors" paradigm (see "Options" under the Table documentation), so
@@ -251,11 +269,23 @@ module Prawn
       #
       def style(options={}, &block)
         options.each do |k, v|
-          # `:"#{k}="` rather than `"#{k}="`: Symbols are interned, so the name
-          # is built once per option and reused, where the String form
-          # allocated two throwaway Strings per option per cell (measured
-          # ~98k objects in a profiled render).
-          setter = :"#{k}="
+          setter = Cell.setter_names[k]
+          if setter.nil?
+            # Interpolating `k` builds a String before it can be interned, so
+            # the resulting Symbol is cached rather than rebuilt per cell.
+            #
+            # Only names the cell answers to are cached. `style` ignores
+            # unknown names by design, and caching those would pin every
+            # distinct name -- and its Symbol -- for the life of the process.
+            setter = :"#{k}="
+            Cell.setter_names[k] = setter if respond_to?(setter)
+          end
+
+          # respond_to? is still consulted on every call. The cache is keyed
+          # per class, but cells can carry singleton methods -- prawn-table
+          # itself prepends Cell::InTable into a cell's singleton class when it
+          # has any -- so a name recognised on one cell is not guaranteed to be
+          # available on another.
           send(setter, v) if respond_to?(setter)
         end
 
