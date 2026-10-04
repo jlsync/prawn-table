@@ -215,6 +215,17 @@ module Prawn
 
       FPTolerance = 1
 
+      # Cache of option name => setter Symbol, so that `style` does not have to
+      # interpolate a fresh String in order to intern one. Setter names are
+      # stable for the life of the process and only a handful of cell options
+      # ever appear, so this stays tiny. Held per class rather than as a
+      # constant because it is filled lazily.
+      #
+      # @api private
+      def self.setter_names
+        @setter_names ||= {}
+      end
+
       # Sets up a cell on the document +pdf+, at the given x/y location +point+,
       # with the given +options+. Cell, like Table, follows the "options set
       # accessors" paradigm (see "Options" under the Table documentation), so
@@ -251,11 +262,10 @@ module Prawn
       #
       def style(options={}, &block)
         options.each do |k, v|
-          # `:"#{k}="` rather than `"#{k}="`: Symbols are interned, so the name
-          # is built once per option and reused, where the String form
-          # allocated two throwaway Strings per option per cell (measured
-          # ~98k objects in a profiled render).
-          setter = :"#{k}="
+          # Interpolating `k` builds a String before it can be interned, so the
+          # Symbol is cached instead: that String was the remaining ~49k
+          # objects per render after the previous change.
+          setter = (self.class.setter_names[k] ||= :"#{k}=")
           send(setter, v) if respond_to?(setter)
         end
 
