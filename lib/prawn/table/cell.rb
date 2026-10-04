@@ -262,10 +262,23 @@ module Prawn
       #
       def style(options={}, &block)
         options.each do |k, v|
-          # Interpolating `k` builds a String before it can be interned, so the
-          # Symbol is cached instead: that String was the remaining ~49k
-          # objects per render after the previous change.
-          setter = (self.class.setter_names[k] ||= :"#{k}=")
+          setter = self.class.setter_names[k]
+          if setter.nil?
+            # Interpolating `k` builds a String before it can be interned, so
+            # the resulting Symbol is cached rather than rebuilt per cell.
+            #
+            # Only names the cell answers to are cached. `style` ignores
+            # unknown names by design, and caching those would pin every
+            # distinct name -- and its Symbol -- for the life of the process.
+            setter = :"#{k}="
+            self.class.setter_names[k] = setter if respond_to?(setter)
+          end
+
+          # respond_to? is still consulted on every call. The cache is keyed
+          # per class, but cells can carry singleton methods -- prawn-table
+          # itself prepends Cell::InTable into a cell's singleton class when it
+          # has any -- so a name recognised on one cell is not guaranteed to be
+          # available on another.
           send(setter, v) if respond_to?(setter)
         end
 
