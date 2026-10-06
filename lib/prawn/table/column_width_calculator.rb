@@ -55,7 +55,7 @@ module Prawn
 
         #calculate the new sum
         new_sum = cell.send(meth) * cell.colspan
-        #substract any calculated values
+        #subtract any calculated values
         cell.colspan.times do |i|
           new_sum -= values[index+i] unless values[index+i].nil?
         end
@@ -129,7 +129,7 @@ module Prawn
       def aggregate_cell_values(row_or_column, meth, aggregate)
         values = {}
 
-        #calculate values for all cells that do not span accross multiple cells
+        #calculate values for all cells that do not span across multiple cells
         #this ensures that we don't have a problem if the first line includes
         #a cell that spans across multiple cells
         #a colspan only spans columns: aggregated by row, such a cell counts

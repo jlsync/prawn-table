@@ -47,7 +47,7 @@ an issue before you go ahead and implement them.
 
 Please use the github issue tracker to file bug reports.
 
-If possible include a failing rspec test case with a seperate pull request and
+If possible include a failing rspec test case with a separate pull request and
 tag it as unresolved and with the issue number. Example:
 
 ```` ruby
