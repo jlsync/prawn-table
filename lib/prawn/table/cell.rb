@@ -233,6 +233,15 @@ module Prawn
         @setter_names ||= {}
       end
 
+      # Cache of option name => boolean indicating whether the cell responds to the setter.
+      # This avoids repeated respond_to? calls for the same setter on cells without singleton methods.
+      # Key is the setter symbol, value is true/false.
+      #
+      # @api private
+      def self.setter_responded_to
+        @setter_responded_to ||= {}
+      end
+
       # Sets up a cell on the document +pdf+, at the given x/y location +point+,
       # with the given +options+. Cell, like Table, follows the "options set
       # accessors" paradigm (see "Options" under the Table documentation), so
@@ -281,12 +290,20 @@ module Prawn
             Cell.setter_names[k] = setter if respond_to?(setter)
           end
 
-          # respond_to? is still consulted on every call. The cache is keyed
-          # per class, but cells can carry singleton methods -- prawn-table
-          # itself prepends Cell::InTable into a cell's singleton class when it
-          # has any -- so a name recognised on one cell is not guaranteed to be
-          # available on another.
-          send(setter, v) if respond_to?(setter)
+          # For cells without singleton methods, we can cache the respond_to? result
+          # to avoid repeated method lookups. Cells with singleton methods (where
+          # Cell::InTable is prepended) still need per-cell checks.
+          if singleton_methods.empty?
+            # Check cache first, fall back to live check if not cached
+            can_send = Cell.setter_responded_to[setter]
+            if can_send.nil?
+              can_send = respond_to?(setter)
+              Cell.setter_responded_to[setter] = can_send
+            end
+            send(setter, v) if can_send
+          else
+            send(setter, v) if respond_to?(setter)
+          end
         end
 
         # The block form supports running a single block for multiple cells, as
@@ -300,7 +317,7 @@ module Prawn
       def width_ignoring_span
         # We can't ||= here because the FP error accumulates on the round-trip
         # from #content_width.
-        defined?(@width) && @width || (content_width + padding_left + padding_right)
+        defined?(@width) && @width || (content_width + @padding[3] + @padding[1])
       end
 
       # Returns the cell's width in points, inclusive of padding. If the cell is
@@ -332,7 +349,7 @@ module Prawn
       #
       def content_width
         if defined?(@width) && @width # manually set
-          return @width - padding_left - padding_right
+          return @width - @padding[3] - @padding[1]
         end
 
         natural_content_width
@@ -341,7 +358,7 @@ module Prawn
       # Width of the entire span group.
       #
       def spanned_content_width
-        width - padding_left - padding_right
+        width - @padding[3] - @padding[1]
       end
 
       # Returns the width this cell would naturally take on, absent other
@@ -358,7 +375,7 @@ module Prawn
       def height_ignoring_span
         # We can't ||= here because the FP error accumulates on the round-trip
         # from #content_height.
-        defined?(@height) && @height || (content_height + padding_top + padding_bottom)
+        defined?(@height) && @height || (content_height + @padding[0] + @padding[2])
       end
 
       # Returns the cell's height in points, inclusive of padding. If the cell
@@ -384,7 +401,7 @@ module Prawn
       #
       def content_height
         if defined?(@height) && @height # manually set
-          return @height - padding_top - padding_bottom
+          return @height - @padding[0] - @padding[2]
         end
 
         natural_content_height
@@ -393,7 +410,7 @@ module Prawn
       # Height of the entire span group.
       #
       def spanned_content_height
-        height - padding_top - padding_bottom
+        height - @padding[0] - @padding[2]
       end
 
       # Returns the height this cell would naturally take on, absent
@@ -524,7 +541,7 @@ module Prawn
       #
       def draw_bounded_content(pt)
         @pdf.float do
-          @pdf.bounding_box([pt[0] + padding_left, pt[1] - padding_top],
+          @pdf.bounding_box([pt[0] + @padding[3], pt[1] - @padding[0]],
                             :width  => spanned_content_width + FPTolerance,
                             :height => spanned_content_height + FPTolerance) do
             draw_content
@@ -743,7 +760,7 @@ module Prawn
       # because padding and size can change.
       #
       def set_width_constraints
-        @min_width ||= padding_left + padding_right
+        @min_width ||= @padding[3] + @padding[1]
         @max_width ||= @pdf.bounds.width
       end
 
@@ -865,6 +882,10 @@ module Prawn
       def each_border_segment(pt)
         x, y = pt
 
+        # Cache border dimensions to avoid repeated method calls
+        border_top_w = border_top_width
+        border_bottom_w = border_bottom_width
+
         @borders.each do |border|
           idx = BORDER_INDEXES[border]
           border_width = @border_widths[idx]
@@ -879,11 +900,11 @@ module Prawn
                      when :bottom
                        [[x, y-height], [x+width, y-height]]
                      when :left
-                       [[x, y + (border_top_width / 2.0)],
-                        [x, y - height - (border_bottom_width / 2.0)]]
+                       [[x, y + (border_top_w / 2.0)],
+                        [x, y - height - (border_bottom_w / 2.0)]]
                      when :right
-                       [[x+width, y + (border_top_width / 2.0)],
-                        [x+width, y - height - (border_bottom_width / 2.0)]]
+                       [[x+width, y + (border_top_w / 2.0)],
+                        [x+width, y - height - (border_bottom_w / 2.0)]]
                      end
 
           yield @border_lines[idx], border_width, @border_colors[idx], from, to
