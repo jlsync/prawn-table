@@ -116,7 +116,7 @@ module Prawn
           end
         end
 
-        @widths_by_column.sort_by { |col, _| col }.map { |_, w| w }
+        @widths_by_column.sort_by { |col, _| col }.map(&:last)
       end
 
       # get column widths (either min or max depending on meth)

@@ -479,7 +479,7 @@ module Prawn
     # Ink all cells on the current page
     def ink_cells(cells_this_page)
       if defined?(@before_rendering_page) && @before_rendering_page
-        c = Cells.new(cells_this_page.map { |ci, _| ci })
+        c = Cells.new(cells_this_page.map(&:first))
         @before_rendering_page.call(c)
       end
     end
