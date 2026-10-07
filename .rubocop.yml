@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 inherit_from: .rubocop_todo.yml
 
 inherit_gem:
@@ -6,6 +8,20 @@ inherit_gem:
 AllCops:
   TargetRubyVersion: 3.3
   SuggestExtensions: false
+  # The manual's example files are reproduced verbatim in the generated manual,
+  # where they are read side by side with the surrounding prose. Keep their
+  # hand-wrapped layout instead of reflowing the published document.
+  Exclude:
+    - manual/**/*.rb
+
+# This gem's sources and specs have used double-quoted strings and hash rockets
+# since the initial extraction. Keep that style rather than churning the whole
+# tree for a cosmetic change.
+Style/HashSyntax:
+  Enabled: false
+
+Style/StringLiterals:
+  Enabled: false
 
 # Anonymous argument/block forwarding would rewrite delegating method
 # signatures and detach them from their documented @param names.
@@ -15,3 +31,12 @@ Style/ArgumentsForwarding:
 Naming/BlockForwarding:
   Enabled: false
 
+# Collapsing a documented empty method body to `def foo(bar); end` reads worse
+# than the multi-line form these overrides already use.
+Style/EmptyMethod:
+  Enabled: false
+
+# `block.call(self)` names the block that Cell#style is invoking; `yield(self)`
+# hides it behind a keyword.
+Performance/RedundantBlockCall:
+  Enabled: false

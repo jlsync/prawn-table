@@ -14,7 +14,7 @@ module Prawn
     def rows(row_spec)
       cells.rows(row_spec)
     end
-    alias_method :row, :rows
+    alias row rows
 
     # Selects the given columns (0-based) for styling. Returns a Cells object
     # -- see the documentation on Cells for things you can do with cells.
@@ -22,7 +22,7 @@ module Prawn
     def columns(col_spec)
       cells.columns(col_spec)
     end
-    alias_method :column, :columns
+    alias column columns
 
     # Represents a selection of cells to be styled. Operations on a CellProxy
     # can be chained, and cell properties can be set one-for-all on the proxy.
@@ -36,10 +36,9 @@ module Prawn
     #   table.rows(1..3).columns(2..4).background_color = 'ff0000'
     #
     class Cells < Array
-
       def fits_on_current_page?(offset, ref_bounds)
         # an empty row array means it definitely fits
-        return true if self.empty?
+        return true if empty?
 
         # Find the (lowest row, lowest column) cell, which is what a grid
         # lookup on this collection would return. Doing it directly avoids
@@ -62,11 +61,18 @@ module Prawn
       def rows(row_spec)
         index_cells unless defined?(@indexed) && @indexed
         row_spec = transform_spec(row_spec, @first_row, @row_count)
-        Cells.new(@rows[row_spec] ||= select { |c|
-                    row_spec.respond_to?(:include?) ?
-                      row_spec.include?(c.row) : row_spec === c.row })
+        Cells.new(
+          @rows[row_spec] ||=
+            select { |c|
+              if row_spec.respond_to?(:include?)
+                row_spec.include?(c.row)
+              else
+                row_spec === c.row
+              end
+            },
+        )
       end
-      alias_method :row, :rows
+      alias row rows
 
       # Returns the number of rows in the list.
       #
@@ -85,11 +91,18 @@ module Prawn
       def columns(col_spec)
         index_cells unless defined?(@indexed) && @indexed
         col_spec = transform_spec(col_spec, @first_column, @column_count)
-        Cells.new(@columns[col_spec] ||= select { |c|
-                    col_spec.respond_to?(:include?) ?
-                      col_spec.include?(c.column) : col_spec === c.column })
+        Cells.new(
+          @columns[col_spec] ||=
+            select { |c|
+              if col_spec.respond_to?(:include?)
+                col_spec.include?(c.column)
+              else
+                col_spec === c.column
+              end
+            },
+        )
       end
-      alias_method :column, :columns
+      alias column columns
 
       # Returns the number of columns in the list.
       #
@@ -113,7 +126,8 @@ module Prawn
       #   table.cells[0, 0].content # => "First cell content"
       #
       def [](row, col)
-        return nil if empty?
+        return if empty?
+
         index_cells unless defined?(@indexed) && @indexed
         @grid[[@first_row + row, @first_column + col]]
       end
@@ -121,16 +135,17 @@ module Prawn
       # Puts a cell in the collection at the given position. Internal use only.
       #
       def []=(row, col, cell) # :nodoc:
-        classes = (@standard_coordinate_cell_classes ||= Hash.new do |h, k|
-          h[k] = k.method_defined?(:row) &&
-                 k.method_defined?(:column) &&
-                 k.method_defined?(:row=) &&
-                 k.method_defined?(:column=) &&
-                 k.instance_method(:row).owner.equal?(Cell::InTable) &&
-                 k.instance_method(:column).owner.equal?(Cell::InTable) &&
-                 k.instance_method(:row=).owner.equal?(Cell::InTable) &&
-                 k.instance_method(:column=).owner.equal?(Cell::InTable)
-        end)
+        classes = (@standard_coordinate_cell_classes ||=
+                     Hash.new do |h, k|
+                       h[k] = k.method_defined?(:row) &&
+                              k.method_defined?(:column) &&
+                              k.method_defined?(:row=) &&
+                              k.method_defined?(:column=) &&
+                              k.instance_method(:row).owner.equal?(Cell::InTable) &&
+                              k.instance_method(:column).owner.equal?(Cell::InTable) &&
+                              k.instance_method(:row=).owner.equal?(Cell::InTable) &&
+                              k.instance_method(:column=).owner.equal?(Cell::InTable)
+                     end)
         unless cell.singleton_methods.empty? && classes[cell.class]
           cell.singleton_class.prepend(Cell::InTable)
         end
@@ -138,12 +153,12 @@ module Prawn
         cell.column = col
 
         if defined?(@indexed) && @indexed
-          (@rows[row]    ||= []) << cell
+          (@rows[row] ||= []) << cell
           (@columns[col] ||= []) << cell
           @grid[[row, col]] = cell
-          @first_row    = row if !@first_row    || row < @first_row
+          @first_row = row if !@first_row || row < @first_row
           @first_column = col if !@first_column || col < @first_column
-          @row_count    = @rows.size
+          @row_count = @rows.size
           @column_count = @columns.size
         end
 
@@ -164,9 +179,10 @@ module Prawn
       #
       #   table.cells.style { |cell| cell.border_width += 12 }
       #
-      def style(options={}, &block)
+      def style(options = {}, &block)
         each do |cell|
           next if cell.is_a?(Cell::SpanDummy)
+
           cell.style(options, &block)
         end
       end
@@ -238,10 +254,10 @@ module Prawn
           first_column = cell.column if !first_column || cell.column < first_column
         end
 
-        @first_row    = first_row
+        @first_row = first_row
         @first_column = first_column
 
-        @row_count    = @rows.size
+        @row_count = @rows.size
         @column_count = @columns.size
 
         @indexed = true
@@ -264,8 +280,7 @@ module Prawn
       def transform_spec(spec, first, total)
         case spec
         when Range
-          transform_spec(spec.begin, first, total) ..
-            transform_spec(spec.end, first, total)
+          transform_spec(spec.begin, first, total)..transform_spec(spec.end, first, total)
         when Integer
           spec < 0 ? (first + total + spec) : first + spec
         when Enumerable

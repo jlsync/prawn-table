@@ -6,7 +6,6 @@
 #
 # This is free software. Please see the LICENSE and COPYING files for details.
 
-
 require 'prawn'
 require_relative 'table/column_width_calculator'
 require_relative 'table/cell'
@@ -22,15 +21,20 @@ module Prawn
   module Errors
     # This error is raised when table data is malformed
     #
-    InvalidTableData = Class.new(StandardError)
+    class InvalidTableData < StandardError
+    end
 
     # This error is raised when an empty or nil table is rendered
     #
-    EmptyTable = Class.new(StandardError)
+    class EmptyTable < StandardError
+    end
 
     # Raised when unrecognized content is provided for a table cell.
     #
-    UnrecognizedTableContent = Class.new(StandardError) unless defined?(::Prawn::Errors::UnrecognizedTableContent)
+    unless defined?(::Prawn::Errors::UnrecognizedTableContent)
+      class UnrecognizedTableContent < StandardError
+      end
+    end
   end
 
   # Next-generation table drawing for Prawn.
@@ -119,7 +123,7 @@ module Prawn
       #
       # See the documentation on Prawn::Table for details on the arguments.
       #
-      def table(data, options={}, &block)
+      def table(data, options = {}, &block)
         t = Table.new(data, self, options, &block)
         t.draw
         t
@@ -130,7 +134,7 @@ module Prawn
       #
       # See the documentation on Prawn::Table for details on the arguments.
       #
-      def make_table(data, options={}, &block)
+      def make_table(data, options = {}, &block)
         Table.new(data, self, options, &block)
       end
     end
@@ -146,7 +150,7 @@ module Prawn
     #   A hash of attributes and values for the table. See the "Options" block
     #   above for details on available options.
     #
-    def initialize(data, document, options={}, &block)
+    def initialize(data, document, options = {}, &block)
       table_opts = options.dup
       @pdf = document
       @cells = make_cells(data, table_opts.delete(:cell_style) || {})
@@ -275,7 +279,7 @@ module Prawn
     #     column(0).style { |c| c.border_width += 1 }
     #   end
     #
-    def style(stylable, style_hash={}, &block)
+    def style(stylable, style_hash = {}, &block)
       stylable.style(style_hash, &block)
     end
 
@@ -350,42 +354,45 @@ module Prawn
     # sizes, you should specify more column widths manually.
     #
     def column_widths
-      @column_widths ||= begin
-        min_w = cells.min_width
-        if width - min_w < -Prawn::FLOAT_PRECISION
-          raise Errors::CannotFit,
-            "Table's width was set too small to contain its contents " +
-            "(min width #{min_w}, requested #{width})"
-        end
-
-        max_w = cells.max_width
-        if width - max_w > Prawn::FLOAT_PRECISION
-          raise Errors::CannotFit,
-            "Table's width was set larger than its contents' maximum width " +
-            "(max width #{max_w}, requested #{width})"
-        end
-
-        nat_w = natural_width
-        if width - nat_w < -Prawn::FLOAT_PRECISION
-          # Shrink the table to fit the requested width.
-          f = (width - min_w).to_f / (nat_w - min_w)
-
-          (0...column_length).map do |c|
-            min, nat = column(c).min_width, natural_column_widths[c]
-            (f * (nat - min)) + min
+      @column_widths ||=
+        begin
+          min_w = cells.min_width
+          if width - min_w < -Prawn::FLOAT_PRECISION
+            raise Errors::CannotFit,
+              "Table's width was set too small to contain its contents " +
+                "(min width #{min_w}, requested #{width})"
           end
-        elsif width - nat_w > Prawn::FLOAT_PRECISION
-          # Expand the table to fit the requested width.
-          f = (width - nat_w).to_f / (max_w - nat_w)
 
-          (0...column_length).map do |c|
-            nat, max = natural_column_widths[c], column(c).max_width
-            (f * (max - nat)) + nat
+          max_w = cells.max_width
+          if width - max_w > Prawn::FLOAT_PRECISION
+            raise Errors::CannotFit,
+              "Table's width was set larger than its contents' maximum width " +
+                "(max width #{max_w}, requested #{width})"
           end
-        else
-          natural_column_widths
+
+          nat_w = natural_width
+          if width - nat_w < -Prawn::FLOAT_PRECISION
+            # Shrink the table to fit the requested width.
+            f = (width - min_w).to_f / (nat_w - min_w)
+
+            (0...column_length).map do |c|
+              min = column(c).min_width
+              nat = natural_column_widths[c]
+              (f * (nat - min)) + min
+            end
+          elsif width - nat_w > Prawn::FLOAT_PRECISION
+            # Expand the table to fit the requested width.
+            f = (width - nat_w).to_f / (max_w - nat_w)
+
+            (0...column_length).map do |c|
+              nat = natural_column_widths[c]
+              max = column(c).max_width
+              (f * (max - nat)) + nat
+            end
+          else
+            natural_column_widths
+          end
         end
-      end
     end
 
     # Returns an array with the height of each row.
@@ -428,12 +435,13 @@ module Prawn
     # @return [Integer] the number of rows of the header
     def number_of_header_rows
       # header may be set to any integer value -> number of rows
-      if @header.is_a? Integer
+      if @header.is_a?(Integer)
         return @header
       # header may be set to true -> first row is repeated
       elsif @header
         return 1
       end
+
       # defaults to 0 header rows
       0
     end
@@ -443,8 +451,8 @@ module Prawn
       # we only need to run this test on the first cell in a row
       # check if the rows height fails to fit on the page
       # check if the row is not the first on that page (wouldn't make sense to go to next page in this case)
-      (cell.column == 0 && cell.row > 0 &&
-       !row(cell.row).fits_on_current_page?(offset, ref_bounds))
+      cell.column == 0 && cell.row > 0 &&
+        !row(cell.row).fits_on_current_page?(offset, ref_bounds)
     end
 
     # ink cells and then draw them
@@ -456,7 +464,7 @@ module Prawn
     # ink and draw cells, then start a new page
     def ink_and_draw_cells_and_start_new_page(cells_this_page, cell)
       # don't draw only a header
-      draw_cells = (@header_row.nil? || cells_this_page.size > @header_row.size)
+      draw_cells = @header_row.nil? || cells_this_page.size > @header_row.size
 
       ink_and_draw_cells(cells_this_page, draw_cells)
 
@@ -473,7 +481,7 @@ module Prawn
       offset -= header_height
 
       # reset cells_this_page in calling function and return new offset
-      return cells_next_page, offset
+      [cells_next_page, offset]
     end
 
     # Ink all cells on the current page
@@ -515,11 +523,12 @@ module Prawn
 
     # do we have enough room to fit a given height on to the current page?
     def fits_on_page?(needed_height, use_reference_bounds = false)
-      if use_reference_bounds
-        bounds = @pdf.reference_bounds
-      else
-        bounds = @pdf.bounds
-      end
+      bounds =
+        if use_reference_bounds
+          @pdf.reference_bounds
+        else
+          @pdf.bounds
+        end
       needed_height < @pdf.y - (bounds.absolute_bottom - Prawn::FLOAT_PRECISION)
     end
 
@@ -556,11 +565,12 @@ module Prawn
           end
 
           # Build the cell and store it in the Cells collection.
-          cell = if cell_data.is_a?(Hash)
-                   Cell.make(@pdf, cell_style.empty? ? cell_data : cell_style.merge(cell_data))
-                 else
-                   Cell.make(@pdf, cell_data, cell_style)
-                 end
+          cell =
+            if cell_data.is_a?(Hash)
+              Cell.make(@pdf, cell_style.empty? ? cell_data : cell_style.merge(cell_data))
+            else
+              Cell.make(@pdf, cell_data, cell_style)
+            end
           cells[row_number, column_number] = cell
 
           r_end = row_number + cell.rowspan
@@ -584,7 +594,7 @@ module Prawn
                 if cells[row_number + i, column_number + j]
                   raise Prawn::Errors::InvalidTableSpan,
                     "Spans overlap at row #{row_number + i}, " +
-                    "column #{column_number + j}."
+                      "column #{column_number + j}."
                 end
 
                 dummy = Cell::SpanDummy.new(@pdf, cell)
@@ -615,7 +625,10 @@ module Prawn
       if row_number > 0 && @header
         y_coord = @pdf.cursor
         number_of_header_rows.times do |h|
-          additional_header_height = add_one_header_row(cells_this_page, x_offset, y_coord-header_height, row_number-1, h)
+          additional_header_height = add_one_header_row(
+            cells_this_page, x_offset, y_coord - header_height, row_number - 1,
+            h,
+          )
           header_height += additional_header_height
         end
       end
@@ -629,12 +642,12 @@ module Prawn
     #
     # Return the height of the header.
     #
-    def add_one_header_row(page_of_cells, x_offset, y, row, row_of_header=nil)
+    def add_one_header_row(page_of_cells, x_offset, y, row, row_of_header = nil)
       rows_to_operate_on = @header_row
       rows_to_operate_on = @header_row.rows(row_of_header) if row_of_header
       rows_to_operate_on.each do |cell|
         cell.row = row
-        cell.dummy_cells.each {|c|
+        cell.dummy_cells.each do |c|
           if cell.rowspan > 1
             # be sure to account for cells that span multiple rows
             # in this case you need multiple row numbers
@@ -642,7 +655,7 @@ module Prawn
           else
             c.row = row
           end
-        }
+        end
         page_of_cells << [cell, [cell.x + x_offset, y]]
       end
       rows_to_operate_on.height
@@ -655,10 +668,10 @@ module Prawn
       if data.nil? || data.empty?
         raise Prawn::Errors::EmptyTable,
           "data must be a non-empty, non-nil, two dimensional array " +
-          "of cell-convertible objects"
+            "of cell-convertible objects"
       end
 
-      unless data.all? { |e| Array === e }
+      unless data.all? { |e| e.is_a?(Array) }
         raise Prawn::Errors::InvalidTableData,
           "data must be a two dimensional array of cellable objects"
       end
@@ -702,9 +715,19 @@ module Prawn
     #
     def position_cells
       x = 0
-      x_positions = column_widths.map { |w| pos = x; x += w; pos }
+      x_positions =
+        column_widths.map { |w|
+          pos = x
+          x += w
+          pos
+        }
       y = 0
-      y_positions = row_heights.map { |h| pos = y; y -= h; pos }
+      y_positions =
+        row_heights.map { |h|
+          pos = y
+          y -= h
+          pos
+        }
 
       cells.each do |c|
         c.x = x_positions[c.column]
@@ -716,25 +739,25 @@ module Prawn
     # :position option, and yields.
     #
     def with_position
-      x = case defined?(@position) && @position || :left
-          when :left   then return yield
-          when :center then (@pdf.bounds.width - width) / 2.0
-          when :right  then  @pdf.bounds.width - width
-          when Numeric then  @position
-          else raise ArgumentError, "unknown position #{@position.inspect}"
-          end
+      x =
+        case (defined?(@position) && @position) || :left
+        when :left then return yield
+        when :center then (@pdf.bounds.width - width) / 2.0
+        when :right then @pdf.bounds.width - width
+        when Numeric then @position
+        else raise ArgumentError, "unknown position #{@position.inspect}"
+        end
       dy = @pdf.bounds.absolute_top - @pdf.y
       final_y = nil
 
       @pdf.bounding_box([x, @pdf.bounds.top], :width => width) do
-        @pdf.move_down dy
+        @pdf.move_down(dy)
         yield
         final_y = @pdf.y
       end
 
       @pdf.y = final_y
     end
-
   end
 end
 

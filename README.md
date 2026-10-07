@@ -1,8 +1,7 @@
 # Prawn::Table
 
 [![Gem Version](https://badge.fury.io/rb/prawn-table.png)](http://badge.fury.io/rb/prawn-table)
-![Build Status](https://github.com/prawnpdf/prawn-table/actions/workflows/ci.yml/badge.svg)
-[![Code Climate](https://codeclimate.com/github/prawnpdf/prawn-table.png)](https://codeclimate.com/github/prawnpdf/prawn-table)
+![Build Status](https://github.com/jlsync/prawn-table/actions/workflows/ci.yml/badge.svg)
 ![Maintained: PRs accepted](https://img.shields.io/badge/maintained-PRs_accepted-orange.png)
 
 Provides table support for PrawnPDF.
@@ -11,10 +10,16 @@ Originally written by Brad Ediger with community contributions.
 
 ## Status
 
-This is currently an experimental extraction and is not actively maintained by
-the Prawn maintainers. Yet, Prawn maintenance team will help you integrate your pull
-requests. Please reach out to the Prawn maintenance team if you are interested
-in helping maintaining this project.
+This gem is not actively maintained by the Prawn maintainers, though they are
+happy to help integrate pull requests. The Prawn maintenance team would welcome
+anyone interested in helping maintain it.
+
+## Requirements
+
+* Ruby 3.3 or later.
+* Prawn. The `Gemfile` consumes the [jlsync fork of
+  prawn](https://github.com/jlsync/prawn), along with its `pdf-core` and
+  `ttfunk` forks, which carry performance fixes that are not yet in a release.
 
 ## Documentation
 
@@ -22,16 +27,23 @@ A snapshot of Prawn::Table's manual can be found here:
 http://prawnpdf.org/prawn-table-manual.pdf
 
 You can also generate a manual yourself by cloning the repository, running
-`bundle`, then running `rake manual`.
+`bundle install`, then running `bundle exec rake manual`.
 
 All the example files in the `manual` folder can be run individually.
 
-## Development priority
+## Development
 
-The main development priority is refactoring the code in order to reduce its
-complexity and thus make it more readable. By doing this, we will be able
-to more easily stabilize the codebase, which currently has a high
-defect density.
+Install the dependencies and run the test suite and the linter:
+
+```sh
+bundle install
+bundle exec rake          # spec + rubocop
+bundle exec rake spec
+bundle exec rake rubocop
+```
+
+The Rakefile and both configurations are shared with the rest of the Prawn
+toolchain through the `prawn-dev` gem.
 
 ## Feature requests
 

@@ -8,7 +8,6 @@
 module Prawn
   class Table
     class Cell
-
       # A Cell object used to represent all but the topmost cell in a span
       # group.
       #

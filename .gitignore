@@ -1,2 +1,7 @@
 Gemfile.lock
+*.gem
 manual.pdf
+pkg/
+doc/
+tmp/
+.dsh-tmp/
