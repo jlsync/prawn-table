@@ -41,7 +41,13 @@ module Prawn
         # an empty row array means it definitely fits
         return true if self.empty?
 
-        height_with_span < (self[0,0].y + offset) - ref_bounds.absolute_bottom
+        # Find the (lowest row, lowest column) cell, which is what a grid
+        # lookup on this collection would return. Doing it directly avoids
+        # building the row/column/grid indexes for the throwaway Cells object
+        # that #rows hands out on every row of a drawing table.
+        first_cell = min { |a, b| a.row == b.row ? a.column <=> b.column : a.row <=> b.row }
+
+        height_with_span < (first_cell.y + offset) - ref_bounds.absolute_bottom
       end
 
       # @group Experimental API
