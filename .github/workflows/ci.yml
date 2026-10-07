@@ -20,12 +20,15 @@ env:
 jobs:
   code-style:
     runs-on: ubuntu-latest
+    env:
+      # Keep RuboCop's result cache out of the shared runner home.
+      RUBOCOP_CACHE_ROOT: ${{ github.workspace }}/tmp/rubocop_cache
     steps:
       - uses: actions/checkout@v4
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1
         with:
-          ruby-version: "3.3"
+          ruby-version: "4.0"
           bundler-cache: true
       - name: Check code style
         run: bundle exec rake rubocop
