@@ -13,10 +13,6 @@ concurrency:
 permissions:
   contents: read
 
-env:
-  # Installed outside the checkout so RuboCop does not inspect vendored gems.
-  BUNDLE_PATH: ~/gems
-
 jobs:
   code-style:
     runs-on: ubuntu-latest

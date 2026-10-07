@@ -4,4 +4,5 @@ manual.pdf
 pkg/
 doc/
 tmp/
+vendor/bundle/
 .dsh-tmp/

@@ -8,11 +8,14 @@ inherit_gem:
 AllCops:
   TargetRubyVersion: 3.3
   SuggestExtensions: false
-  # The manual's example files are reproduced verbatim in the generated manual,
-  # where they are read side by side with the surrounding prose. Keep their
-  # hand-wrapped layout instead of reflowing the published document.
   Exclude:
+    # The manual's example files are reproduced verbatim in the generated
+    # manual, where they are read side by side with the surrounding prose. Keep
+    # their hand-wrapped layout instead of reflowing the published document.
     - manual/**/*.rb
+    # ruby/setup-ruby installs into vendor/bundle for its bundler cache, which
+    # would otherwise be inspected along with the project's own files.
+    - vendor/bundle/**/*
 
 # This gem's sources and specs have used double-quoted strings and hash rockets
 # since the initial extraction. Keep that style rather than churning the whole
