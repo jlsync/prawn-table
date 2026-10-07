@@ -26,7 +26,13 @@ module Prawn
 
         HEIGHT_CACHE_LIMIT = 2048
         HEIGHT_CACHE_MAX_TEXT_BYTES = 128
-        private_constant :HEIGHT_CACHE_LIMIT, :HEIGHT_CACHE_MAX_TEXT_BYTES
+        # Options for selecting the font when the cell has no style of its own.
+        # Prawn's #font neither mutates the options it is given nor treats an
+        # empty Hash differently from `{ :style => :normal }`, so a single
+        # frozen Hash can stand in for the fresh one built on every call.
+        NO_FONT_OPTIONS = {}.freeze
+        private_constant :HEIGHT_CACHE_LIMIT, :HEIGHT_CACHE_MAX_TEXT_BYTES,
+          :NO_FONT_OPTIONS
 
         attr_writer :font
         attr_writer :text_color
@@ -114,7 +120,11 @@ module Prawn
           # sure we have enough width to be at least one character wide. This is
           # a bit of a hack, but it should work well enough.
           unless defined?(@min_width) && @min_width
-            min_content_width = [natural_content_width, styled_width_of_single_character].min
+            # The natural width and the one-character minimum both need this
+            # cell's font selected, and with_font is re-entrant, so they share
+            # a single selection.
+            min_content_width =
+              with_font { [natural_content_width, styled_width_of_single_character].min }
             @min_width = padding_left + padding_right + min_content_width
             super
           end
@@ -123,14 +133,23 @@ module Prawn
         protected
 
         def with_font
+          # A measurement may need the font selected more than once; the
+          # outermost call selects it and the inner ones reuse that selection
+          # instead of saving and reselecting the same font.
+          return yield if @font_selected
+
           @pdf.save_font do
-            options = {}
-            options[:style] = @text_options[:style] if @text_options[:style]
-            options[:style] ||= @pdf.font.options[:style] if @pdf.font.options[:style]
+            style = @text_options[:style] || @pdf.font.options[:style]
+            options = style ? { :style => style } : NO_FONT_OPTIONS
 
             @pdf.font((defined?(@font) && @font) || @pdf.font.family, options)
 
-            yield
+            @font_selected = true
+            begin
+              yield
+            ensure
+              @font_selected = false
+            end
           end
         end
 
@@ -158,10 +177,9 @@ module Prawn
             array = @pdf.text_formatter.format(@content, *p)
             ::Prawn::Text::Formatted::Box.new(array, options)
           else
-            ::Prawn::Text::Box.new(
-              @content,
-              @text_options.merge(extra_options, :document => @pdf),
-            )
+            options = @text_options.merge(extra_options)
+            options[:document] = @pdf
+            ::Prawn::Text::Box.new(@content, options)
           end
         end
 
