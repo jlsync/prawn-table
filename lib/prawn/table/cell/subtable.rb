@@ -8,15 +8,13 @@
 module Prawn
   class Table
     class Cell
-
       # A Cell that contains another table.
       #
       # @private
       class Subtable < Cell
-
         attr_reader :subtable
 
-        def initialize(pdf, point, options={})
+        def initialize(pdf, point, options = {})
           options[:padding] ||= [0, 0, 0, 0]
 
           super
@@ -59,7 +57,6 @@ module Prawn
         def draw_content
           @subtable.draw
         end
-
       end
     end
   end

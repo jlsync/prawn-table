@@ -6,38 +6,37 @@ on:
   schedule:
     - cron: "6 20 * * 6"
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
 jobs:
   code-style:
     runs-on: ubuntu-latest
+    env:
+      # Keep RuboCop's result cache out of the shared runner home.
+      RUBOCOP_CACHE_ROOT: ${{ github.workspace }}/tmp/rubocop_cache
     steps:
       - uses: actions/checkout@v4
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1
         with:
-          ruby-version: "3.3"
-      - name: Gems cache
-        uses: actions/cache@v4
-        with:
-          path: ~/gems
-          key: gems-3.3-${{ hashFiles('*.gemspec', 'Gemfile') }}
-          restore-keys: |
-            gems-3.3-
-      - name: Install dependencies
-        run: |
-          gem install bundler
-          bundle config path ~/gems
-          bundle install --jobs 4 --retry 3
+          ruby-version: "4.0"
+          bundler-cache: true
       - name: Check code style
         run: bundle exec rake rubocop
+
   test:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         ruby:
-          - "3.3.0"
           - "3.3"
-          - "4.0.0"
+          - "3.4"
           - "4.0"
           - "head"
           - "jruby-10.0"
@@ -48,17 +47,6 @@ jobs:
         uses: ruby/setup-ruby@v1
         with:
           ruby-version: ${{ matrix.ruby }}
-      - name: Gems cache
-        uses: actions/cache@v4
-        with:
-          path: ~/gems
-          key: gems-${{ matrix.ruby }}-${{ hashFiles('*.gemspec', 'Gemfile') }}
-          restore-keys: |
-            gems-${{ matrix.ruby }}-
-      - name: Install dependencies
-        run: |
-          gem install bundler
-          bundle config path ~/gems
-          bundle install --jobs 4 --retry 3
+          bundler-cache: true
       - name: Run tests
         run: bundle exec rake spec

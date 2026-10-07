@@ -8,16 +8,16 @@
 module Prawn
   class Table
     class Cell
-
       # A Cell that contains text. Has some limited options to set font family,
       # size, and style.
       #
       # @private
       class Text < Cell
-
-        TextOptions = [:inline_format, :kerning, :size, :align, :valign,
-          :rotate, :rotate_around, :leading, :single_line, :skip_encoding,
-          :overflow, :min_font_size]
+        TextOptions = %i[
+          inline_format kerning size align valign
+          rotate rotate_around leading single_line skip_encoding
+          overflow min_font_size
+        ]
 
         TextOptions.each do |option|
           define_method("#{option}=") { |v| @text_options[option] = v }
@@ -28,9 +28,10 @@ module Prawn
         HEIGHT_CACHE_MAX_TEXT_BYTES = 128
         private_constant :HEIGHT_CACHE_LIMIT, :HEIGHT_CACHE_MAX_TEXT_BYTES
 
-        attr_writer :font, :text_color
+        attr_writer :font
+        attr_writer :text_color
 
-        def initialize(pdf, point, options={})
+        def initialize(pdf, point, options = {})
           @text_options = {}
           super
         end
@@ -81,10 +82,12 @@ module Prawn
             height = b.height + b.line_gap
 
             if cache
-              signature = [@pdf.font, @pdf.font_size, spanned_content_width,
+              signature = [
+                @pdf.font, @pdf.font_size, spanned_content_width,
                 @pdf.bounds.height, @pdf.character_spacing, @pdf.default_leading,
                 @pdf.default_kerning?, @pdf.text_direction,
-                @text_options.transform_values(&:dup)]
+                @text_options.transform_values(&:dup),
+              ]
               cache[@content] = [signature, height]
             end
             height
@@ -95,11 +98,13 @@ module Prawn
         #
         def draw_content
           with_font do
-            @pdf.move_down((@pdf.font.line_gap + @pdf.font.descender)/2)
+            @pdf.move_down((@pdf.font.line_gap + @pdf.font.descender) / 2)
             with_text_color do
-              text_box(:width => spanned_content_width + FPTolerance,
-                       :height => spanned_content_height + FPTolerance,
-                       :at => [0, @pdf.cursor]).render
+              text_box(
+                :width => spanned_content_width + FPTolerance,
+                :height => spanned_content_height + FPTolerance,
+                :at => [0, @pdf.cursor],
+              ).render
             end
           end
         end
@@ -123,7 +128,7 @@ module Prawn
             options[:style] = @text_options[:style] if @text_options[:style]
             options[:style] ||= @pdf.font.options[:style] if @pdf.font.options[:style]
 
-            @pdf.font(defined?(@font) && @font || @pdf.font.family, options)
+            @pdf.font((defined?(@font) && @font) || @pdf.font.family, options)
 
             yield
           end
@@ -143,7 +148,7 @@ module Prawn
           end
         end
 
-        def text_box(extra_options={})
+        def text_box(extra_options = {})
           if p = @text_options[:inline_format]
             p = [] unless p.is_a?(Array)
             options = @text_options.except(:inline_format)
@@ -153,8 +158,10 @@ module Prawn
             array = @pdf.text_formatter.format(@content, *p)
             ::Prawn::Text::Formatted::Box.new(array, options)
           else
-            ::Prawn::Text::Box.new(@content,
-              @text_options.merge(extra_options, :document => @pdf))
+            ::Prawn::Text::Box.new(
+              @content,
+              @text_options.merge(extra_options, :document => @pdf),
+            )
           end
         end
 

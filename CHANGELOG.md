@@ -1,5 +1,13 @@
 ## Master
 
+* Modernisation pass:
+  - Refresh the lockfile against the latest `jlsync` commits of prawn, `pdf-core` and `ttfunk`, and take prawn (as before) and the shared dev toolchain from the `jlsync` forks.
+  - Bring the gemspec up to current RubyGems standards: `require_relative` for the version, `require_paths`, string-valued `metadata` (MFA required, source, changelog, bug tracker and documentation URIs), no deprecated `test_files`, and no redundant `platform` or `required_rubygems_version`. File lists now include the manual, README and Rakefile.
+  - Pin development dependencies to versions that are actually exercised, and keep `prawn-manual_builder` on the 0.3 series because 0.4 replaced the `Example` API that `manual/contents.rb` uses.
+  - Adopt the spec conventions the rest of the toolchain uses: `.rspec` requires the spec helper, examples run in random order, monkey patching is disabled, and partial doubles are verified. Specs no longer load the library twice or rely on the RSpec 2 `failure_message_for_should` DSL.
+  - Regenerate `.rubocop_todo.yml` against RuboCop 1.91 and autocorrect the library and specs, reducing the todo from 132 to 42 entries (1157 to 340 lines). The manual's example files are excluded from inspection so that reflowing them does not change the published manual. The remaining structural offenses (per-example instance variables and message expectations, mainly) are recorded in the todo rather than silenced.
+  - CI installs through `ruby/setup-ruby`'s `bundler-cache`, drops the duplicate 3.3/4.0 matrix entries, adds Ruby 3.4, and cancels superseded runs.
+  - Drop the `rake stats` task, which required the long-removed `code_statistics` library.
 * Reduce object allocations and improve layout performance across table construction, sizing, and rendering:
   - Cache whether `draw_borders` is overridden per cell class, avoiding `Method` object allocations during batched border rendering.
   - Eliminate array allocations on text cell height cache hits via field-by-field short-circuiting.
@@ -13,7 +21,7 @@
 * Bugfix: A table's height (and a row's `height_with_span`) now counts a cell with `colspan > 1` towards its own row. The height was short by the difference between that row and the next, so a subtable with such a row was squeezed into too small a cell and its last row spilled onto a new page. (issue [#10](https://github.com/prawnpdf/prawn-table/issues/10))
 * Reuse cell height measurements for inline-formatted text too, when the document uses Prawn's own text formatter, and keep up to 2048 short strings per document instead of 256. Reports made of many small tables with repeated `inline_format` values measure each distinct string once instead of rendering every cell twice: a 231-page timeline-style report renders about 15% faster with identical output.
 * Stroke the borders of all cells on a page together, as one path per run of same-styled borders, with edges shared by adjacent cells written once. Large tables render noticeably faster and produce smaller PDFs with the same appearance, except that overlapping border corners and shared edges are no longer painted twice (visible only with transparency). Pass `batch_borders: false` to a table to draw each cell's borders just before its content, as before. Cells that override `draw_borders` still have it called.
-* Require Ruby 3.3 or later. CI tests MRI 3.3, 4.0 and head, and JRuby 10.0 and 10.1, against the jlsync forks of prawn, pdf-core and ttfunk.
+* Require Ruby 3.3 or later. CI tests MRI 3.3, 3.4, 4.0 and head, and JRuby 10.0 and 10.1, against the jlsync forks of prawn, pdf-core and ttfunk.
 * Bugfix: Use a cell's custom style over table styles. (PR [#143](https://github.com/prawnpdf/prawn-table/pull/143), issue [#56](https://github.com/prawnpdf/prawn-table/issues/56))
 * Bugfix: Use the cell's specified font to calculate the cell width. (Jesse Doyle, PR [#60](https://github.com/prawnpdf/prawn-table/pull/60), issue [#42](https://github.com/prawnpdf/prawn-table/issues/42))
 

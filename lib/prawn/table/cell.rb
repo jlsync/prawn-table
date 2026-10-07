@@ -10,7 +10,6 @@ require 'date'
 require_relative 'cell/in_table'
 module Prawn
   class Document
-
     # @group Experimental API
 
     # Instantiates and draws a cell on the document.
@@ -19,7 +18,7 @@ module Prawn
     #
     # See Prawn::Table::Cell.make for full options.
     #
-    def cell(options={})
+    def cell(options = {})
       cell = Table::Cell.make(self, options.delete(:content), options)
       cell.draw
       cell
@@ -31,14 +30,12 @@ module Prawn
     #
     # See the documentation on Prawn::Cell for details on the arguments.
     #
-    def make_cell(content, options={})
+    def make_cell(content, options = {})
       Prawn::Table::Cell.make(self, content, options)
     end
-
   end
 
   class Table
-
     # A Cell is a rectangular area of the page into which content is drawn. It
     # has a framework for sizing itself and adding padding and simple styling.
     # There are several standard Cell subclasses that handle things like text,
@@ -51,7 +48,6 @@ module Prawn
     # lib/prawn/table/cell/*.rb for a template.
     #
     class Cell
-
       include InTable
 
       # Amount of dead space (in PDF points) inside the borders but outside the
@@ -167,7 +163,7 @@ module Prawn
       # cell returned depends on the :content argument. See the Prawn::Table
       # documentation under "Data" for allowable content types.
       #
-      def self.make(pdf, content, options={})
+      def self.make(pdf, content, options = {})
         at = options.delete(:at) || [0, pdf.cursor]
 
         return Cell::Image.new(pdf, at, content) if content.is_a?(Hash) && content[:image]
@@ -197,9 +193,9 @@ module Prawn
 
       def self.stringify_content?(content)
         return true if content.nil?
-        return true if content.kind_of?(Numeric)
-        return true if content.kind_of?(Date)
-        return true if content.kind_of?(Time)
+        return true if content.is_a?(Numeric)
+        return true if content.is_a?(Date)
+        return true if content.is_a?(Time)
 
         false
       end
@@ -239,16 +235,16 @@ module Prawn
       # any cell accessor <tt>cell.foo = :bar</tt> can be set by providing the
       # option <tt>:foo => :bar</tt> here.
       #
-      def initialize(pdf, point, options={})
-        @pdf   = pdf
+      def initialize(pdf, point, options = {})
+        @pdf = pdf
         @point = point
 
         # Set defaults; these can be changed by options
-        @padding       = [5, 5, 5, 5]
-        @borders       = [:top, :bottom, :left, :right]
+        @padding = [5, 5, 5, 5]
+        @borders = [:top, :bottom, :left, :right]
         @border_widths = [1] * 4
         @border_colors = ['000000'] * 4
-        @border_lines  = [:solid] * 4
+        @border_lines = [:solid] * 4
         @colspan = 1
         @rowspan = 1
         @dummy_cells = []
@@ -267,7 +263,7 @@ module Prawn
       #   cell.padding = 0
       #   cell.border_width = 2
       #
-      def style(options={}, &block)
+      def style(options = {}, &block)
         options.each do |k, v|
           setter = Cell.setter_names[k]
           if setter.nil?
@@ -300,7 +296,7 @@ module Prawn
       def width_ignoring_span
         # We can't ||= here because the FP error accumulates on the round-trip
         # from #content_width.
-        defined?(@width) && @width || (content_width + padding_left + padding_right)
+        (defined?(@width) && @width) || (content_width + padding_left + padding_right)
       end
 
       # Returns the cell's width in points, inclusive of padding. If the cell is
@@ -358,7 +354,7 @@ module Prawn
       def height_ignoring_span
         # We can't ||= here because the FP error accumulates on the round-trip
         # from #content_height.
-        defined?(@height) && @height || (content_height + padding_top + padding_bottom)
+        (defined?(@height) && @height) || (content_height + padding_top + padding_bottom)
       end
 
       # Returns the cell's height in points, inclusive of padding. If the cell
@@ -420,7 +416,7 @@ module Prawn
         if defined?(@initializer_run) && @initializer_run
           raise Prawn::Errors::InvalidTableSpan,
             "colspan must be provided in the table's structure, never in the " +
-            "initialization block. See Prawn's documentation for details."
+              "initialization block. See Prawn's documentation for details."
         end
 
         @colspan = span
@@ -441,7 +437,7 @@ module Prawn
         if defined?(@initializer_run) && @initializer_run
           raise Prawn::Errors::InvalidTableSpan,
             "rowspan must be provided in the table's structure, never in the " +
-            "initialization block. See Prawn's documentation for details."
+              "initialization block. See Prawn's documentation for details."
         end
 
         @rowspan = span
@@ -454,7 +450,7 @@ module Prawn
       # Cell.draw_cells, which ensures that the backgrounds, borders, and
       # content are all drawn in correct order so as not to overlap.
       #
-      def draw(pt=[x, y])
+      def draw(pt = [x, y])
         Prawn::Table::Cell.draw_cells([[self, pt]])
       end
 
@@ -484,19 +480,23 @@ module Prawn
           return
         end
 
-        unoverridden_classes = Hash.new do |h, k|
-          h[k] = k.instance_method(:draw_borders).owner.equal?(Cell)
-        end
-        batched = cells.map { |cell, _|
-          if cell.singleton_methods.empty?
-            unoverridden_classes[cell.class]
-          else
-            cell.method(:draw_borders).owner.equal?(Cell)
+        unoverridden_classes =
+          Hash.new do |h, k|
+            h[k] = k.instance_method(:draw_borders).owner.equal?(Cell)
           end
-        }
+        batched =
+          cells.map { |cell, _|
+            if cell.singleton_methods.empty?
+              unoverridden_classes[cell.class]
+            else
+              cell.method(:draw_borders).owner.equal?(Cell)
+            end
+          }
         if (first = batched.index(true))
-          batch = BorderBatch.new(cells[first][0].document,
-            by_style: batch_borders == :by_style)
+          batch = BorderBatch.new(
+            cells[first][0].document,
+            by_style: batch_borders == :by_style,
+          )
           begin
             cells.each_with_index do |(cell, pt), i|
               batch.add(cell, pt) if batched[i]
@@ -524,9 +524,11 @@ module Prawn
       #
       def draw_bounded_content(pt)
         @pdf.float do
-          @pdf.bounding_box([pt[0] + padding_left, pt[1] - padding_top],
-                            :width  => spanned_content_width + FPTolerance,
-                            :height => spanned_content_height + FPTolerance) do
+          @pdf.bounding_box(
+            [pt[0] + padding_left, pt[1] - padding_top],
+            :width => spanned_content_width + FPTolerance,
+            :height => spanned_content_height + FPTolerance,
+          ) do
             draw_content
           end
         end
@@ -574,21 +576,21 @@ module Prawn
       # * a four-element array [top, right, bottom, left]
       #
       def padding=(pad)
-        @padding = case
-        when pad.nil?
-          [0, 0, 0, 0]
-        when Numeric === pad # all padding
-          [pad, pad, pad, pad]
-        when pad.length == 2 # vert, horiz
-          [pad[0], pad[1], pad[0], pad[1]]
-        when pad.length == 3 # top, horiz, bottom
-          [pad[0], pad[1], pad[2], pad[1]]
-        when pad.length == 4 # top, right, bottom, left
-          [pad[0], pad[1], pad[2], pad[3]]
-        else
-          raise ArgumentError, ":padding must be a number or an array [v,h] " +
-            "or [t,r,b,l]"
-        end
+        @padding =
+          if pad.nil?
+            [0, 0, 0, 0]
+          elsif pad.is_a?(Numeric) # all padding
+            [pad, pad, pad, pad]
+          elsif pad.length == 2 # vert, horiz
+            [pad[0], pad[1], pad[0], pad[1]]
+          elsif pad.length == 3 # top, horiz, bottom
+            [pad[0], pad[1], pad[2], pad[1]]
+          elsif pad.length == 4 # top, right, bottom, left
+            [pad[0], pad[1], pad[2], pad[3]]
+          else
+            raise ArgumentError, ":padding must be a number or an array [v,h] " +
+              "or [t,r,b,l]"
+          end
       end
 
       def padding_top
@@ -631,23 +633,23 @@ module Prawn
       # * a four-element array [top, right, bottom, left]
       #
       def border_color=(color)
-        @border_colors = case
-        when color.nil?
-          ["000000"] * 4
-        when String === color # all colors
-          [color, color, color, color]
-        when color.length == 2 # vert, horiz
-          [color[0], color[1], color[0], color[1]]
-        when color.length == 3 # top, horiz, bottom
-          [color[0], color[1], color[2], color[1]]
-        when color.length == 4 # top, right, bottom, left
-          [color[0], color[1], color[2], color[3]]
-        else
-          raise ArgumentError, ":border_color must be a string " +
-            "or an array [v,h] or [t,r,b,l]"
-        end
+        @border_colors =
+          if color.nil?
+            ["000000"] * 4
+          elsif color.is_a?(String) # all colors
+            [color, color, color, color]
+          elsif color.length == 2 # vert, horiz
+            [color[0], color[1], color[0], color[1]]
+          elsif color.length == 3 # top, horiz, bottom
+            [color[0], color[1], color[2], color[1]]
+          elsif color.length == 4 # top, right, bottom, left
+            [color[0], color[1], color[2], color[3]]
+          else
+            raise ArgumentError, ":border_color must be a string " +
+              "or an array [v,h] or [t,r,b,l]"
+          end
       end
-      alias_method :border_colors=, :border_color=
+      alias border_colors= border_color=
 
       def border_top_color
         @border_colors[0]
@@ -689,23 +691,23 @@ module Prawn
       # * a four-element array [top, right, bottom, left]
       #
       def border_width=(width)
-        @border_widths = case
-        when width.nil?
-          ["000000"] * 4
-        when Numeric === width # all widths
-          [width, width, width, width]
-        when width.length == 2 # vert, horiz
-          [width[0], width[1], width[0], width[1]]
-        when width.length == 3 # top, horiz, bottom
-          [width[0], width[1], width[2], width[1]]
-        when width.length == 4 # top, right, bottom, left
-          [width[0], width[1], width[2], width[3]]
-        else
-          raise ArgumentError, ":border_width must be a string " +
-            "or an array [v,h] or [t,r,b,l]"
-        end
+        @border_widths =
+          if width.nil?
+            ["000000"] * 4
+          elsif width.is_a?(Numeric) # all widths
+            [width, width, width, width]
+          elsif width.length == 2 # vert, horiz
+            [width[0], width[1], width[0], width[1]]
+          elsif width.length == 3 # top, horiz, bottom
+            [width[0], width[1], width[2], width[1]]
+          elsif width.length == 4 # top, right, bottom, left
+            [width[0], width[1], width[2], width[3]]
+          else
+            raise ArgumentError, ":border_width must be a string " +
+              "or an array [v,h] or [t,r,b,l]"
+          end
       end
-      alias_method :border_widths=, :border_width=
+      alias border_widths= border_width=
 
       def border_top_width
         @borders.include?(:top) ? @border_widths[0] : 0
@@ -757,23 +759,23 @@ module Prawn
       # * a four-element array [top, right, bottom, left]
       #
       def border_line=(line)
-        @border_lines = case
-        when line.nil?
-          [:solid] * 4
-        when line.length == 1 # all lines
-          [line[0]] * 4
-        when line.length == 2
-          [line[0], line[1], line[0], line[1]]
-        when line.length == 3
-          [line[0], line[1], line[2], line[1]]
-        when line.length == 4
-          [line[0], line[1], line[2], line[3]]
-        else
-          raise ArgumentError, "border_line must be one of :solid, :dashed, "
+        @border_lines =
+          if line.nil?
+            [:solid] * 4
+          elsif line.length == 1 # all lines
+            [line[0]] * 4
+          elsif line.length == 2
+            [line[0], line[1], line[0], line[1]]
+          elsif line.length == 3
+            [line[0], line[1], line[2], line[1]]
+          elsif line.length == 4
+            [line[0], line[1], line[2], line[3]]
+          else
+            raise ArgumentError, "border_line must be one of :solid, :dashed, "
             ":dotted or an array [v,h] or [t,r,b,l]"
-        end
+          end
       end
-      alias_method :border_lines=, :border_line=
+      alias border_lines= border_line=
 
       def border_top_line
         @borders.include?(:top) ? @border_lines[0] : 0
@@ -813,8 +815,8 @@ module Prawn
         return unless background_color
 
         @pdf.mask(:fill_color) do
-          @pdf.fill_color background_color
-          @pdf.fill_rectangle pt, width, height
+          @pdf.fill_color(background_color)
+          @pdf.fill_rectangle(pt, width, height)
         end
       end
 
@@ -836,9 +838,9 @@ module Prawn
           each_border_segment(pt) do |border_line, border_width, border_color, from, to|
             case border_line
             when :dashed
-              @pdf.dash border_width * 4
+              @pdf.dash(border_width * 4)
             when :dotted
-              @pdf.dash border_width, :space => border_width * 2
+              @pdf.dash(border_width, :space => border_width * 2)
             when :solid
               # normal line style
             else
@@ -873,18 +875,23 @@ module Prawn
 
           # Left and right borders are drawn one-half border beyond the center
           # of the corner, so that the corners end up square.
-          from, to = case border
-                     when :top
-                       [[x, y], [x+width, y]]
-                     when :bottom
-                       [[x, y-height], [x+width, y-height]]
-                     when :left
-                       [[x, y + (border_top_width / 2.0)],
-                        [x, y - height - (border_bottom_width / 2.0)]]
-                     when :right
-                       [[x+width, y + (border_top_width / 2.0)],
-                        [x+width, y - height - (border_bottom_width / 2.0)]]
-                     end
+          from, to =
+            case border
+            when :top
+              [[x, y], [x + width, y]]
+            when :bottom
+              [[x, y - height], [x + width, y - height]]
+            when :left
+              [
+                [x, y + (border_top_width / 2.0)],
+                [x, y - height - (border_bottom_width / 2.0)],
+              ]
+            when :right
+              [
+                [x + width, y + (border_top_width / 2.0)],
+                [x + width, y - height - (border_bottom_width / 2.0)],
+              ]
+            end
 
           yield @border_lines[idx], border_width, @border_colors[idx], from, to
         end
@@ -896,7 +903,6 @@ module Prawn
       def draw_content
         raise NotImplementedError, "subclasses must implement draw_content"
       end
-
     end
   end
 end

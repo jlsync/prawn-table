@@ -14,4 +14,3 @@ module FileFixtureHelper
     pathname
   end
 end
-
