@@ -28,6 +28,12 @@ module Prawn
     class BorderBatch
       LINE_STYLES = %i[solid dashed dotted].freeze
 
+      # Sentinel cache key for negative zero. Float -0.0 and 0.0 are eql? and
+      # hash alike, but PDF::Core.real writes them as "-0.0" and "0.0", so they
+      # must not share a memo slot.
+      NEGATIVE_ZERO = Object.new
+      private_constant :NEGATIVE_ZERO
+
       def initialize(pdf, by_style: false)
         @pdf = pdf
         @by_style = by_style
@@ -41,6 +47,11 @@ module Prawn
         @segments = {}
         # [line, width, color] => segments, in order of first appearance.
         @paths = {}
+        # PDF::Core.real is a pure function, and border coordinates repeat
+        # heavily (every corner is an endpoint of several segments), so each
+        # distinct value is serialized once. The cache lives and dies with the
+        # batch, which is one page, so it stays small.
+        @real = {}
       end
 
       # Adds the borders of +cell+, drawn at +point+ in the current bounds.
@@ -62,8 +73,8 @@ module Prawn
           # The same operators Graphics#move_to and #line_to would write, so
           # the duplicate check compares exactly what ends up in the PDF.
           segment =
-            "#{PDF::Core.real(left + from[0])} #{PDF::Core.real(bottom + from[1])} m\n" \
-              "#{PDF::Core.real(left + to[0])} #{PDF::Core.real(bottom + to[1])} l"
+            "#{real(left + from[0])} #{real(bottom + from[1])} m\n" \
+              "#{real(left + to[0])} #{real(bottom + to[1])} l"
           @segments[segment] = true
         end
       end
@@ -96,6 +107,14 @@ module Prawn
       end
 
       private
+
+      # +num+ as PDF::Core.real would serialize it, computed once per distinct
+      # value in this batch.
+      #
+      def real(num)
+        key = num.zero? && (1.0 / num).negative? ? NEGATIVE_ZERO : num
+        @real[key] ||= PDF::Core.real(num)
+      end
 
       def start_path(line, width, color)
         if @by_style
