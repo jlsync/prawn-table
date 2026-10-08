@@ -37,6 +37,10 @@ Gem::Specification.new do |spec|
     "documentation_uri" => "https://prawnpdf.org/prawn-table-manual.pdf",
   }
 
+  # Deliberately broad, because the library works with released Prawn. Exact
+  # vertical alignment of :center and :bottom text cells, however, relies on
+  # the jlsync fork's text-box centering fix (0aee64c); a released Prawn centers
+  # such text about half a descender low. See "Requirements" in the README.
   spec.add_dependency("prawn", ">= 1.3.0", "< 3.0.0")
 
   spec.add_development_dependency("pdf-inspector", "~> 1.3")

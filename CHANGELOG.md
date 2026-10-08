@@ -1,5 +1,16 @@
 ## Master
 
+* Bugfix: Position text cells the way Prawn measures them. A text box's height
+  runs from the first line's ascender to the last line's descender, and a cell's
+  height adds one line gap on top of that, so top-aligned (and default) text now
+  moves down by half a line gap instead of half a line gap plus half a
+  descender. `:center` and `:bottom` cells no longer shift the text at all and
+  let the text box position it. Centered text is now actually centered (to
+  within the cell's existing `FPTolerance`) and the descender of `:center` and
+  `:bottom` text no longer hangs below the cell. Measured cell heights, column
+  widths, row positions and pagination are unchanged. This needs the matching
+  prawn fix that centers a text box on its full measured height (jlsync/prawn
+  `0aee64c`), which the lockfile now pins.
 * Modernisation pass:
   - Refresh the lockfile against the latest `jlsync` commits of prawn, `pdf-core` and `ttfunk`, and take prawn (as before) and the shared dev toolchain from the `jlsync` forks.
   - Bring the gemspec up to current RubyGems standards: `require_relative` for the version, `require_paths`, string-valued `metadata` (MFA required, source, changelog, bug tracker and documentation URIs), no deprecated `test_files`, and no redundant `platform` or `required_rubygems_version`. File lists now include the manual, README and Rakefile.

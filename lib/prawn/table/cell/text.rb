@@ -31,8 +31,13 @@ module Prawn
         # empty Hash differently from `{ :style => :normal }`, so a single
         # frozen Hash can stand in for the fresh one built on every call.
         NO_FONT_OPTIONS = {}.freeze
+        # Vertical alignments positioned by the text box itself, which centers
+        # or bottoms the measured text out in the cell. The cell must not shift
+        # the text first, or it offsets that positioning and lets the descender
+        # escape through the bottom of the cell.
+        TEXT_BOX_VALIGNS = [:center, :bottom].freeze
         private_constant :HEIGHT_CACHE_LIMIT, :HEIGHT_CACHE_MAX_TEXT_BYTES,
-          :NO_FONT_OPTIONS
+          :NO_FONT_OPTIONS, :TEXT_BOX_VALIGNS
 
         attr_writer :font
         attr_writer :text_color
@@ -104,7 +109,21 @@ module Prawn
         #
         def draw_content
           with_font do
-            @pdf.move_down((@pdf.font.line_gap + @pdf.font.descender) / 2)
+            # Prawn measures a text box's height from the top of the first
+            # line's ascender to the bottom of the last line's descender, and
+            # cell heights add exactly one line gap to that. Splitting the gap
+            # above and below therefore means moving down half of it. An
+            # earlier version also counted half the descender, which is
+            # already part of the measured height, pushing text down by half a
+            # descender.
+            #
+            # :center and :bottom are positioned by the text box itself, which
+            # centers (or bottoms out) the same measured height in the box.
+            # Shifting them first would offset that positioning and let the
+            # descender escape through the bottom of the cell.
+            unless TEXT_BOX_VALIGNS.include?(@text_options[:valign])
+              @pdf.move_down(@pdf.font.line_gap / 2)
+            end
             with_text_color do
               text_box(
                 :width => spanned_content_width + FPTolerance,
