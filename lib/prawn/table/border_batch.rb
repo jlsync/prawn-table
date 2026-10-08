@@ -71,11 +71,14 @@ module Prawn
           end
 
           # The same operators Graphics#move_to and #line_to would write, so
-          # the duplicate check compares exactly what ends up in the PDF.
-          segment =
-            "#{real(left + from[0])} #{real(bottom + from[1])} m\n" \
-              "#{real(left + to[0])} #{real(bottom + to[1])} l"
-          @segments[segment] = true
+          # the duplicate check compares exactly what ends up in the PDF. One
+          # interpolated literal: adjacent interpolated literals each allocate
+          # an intermediate String before being joined.
+          x1 = real(left + from[0])
+          y1 = real(bottom + from[1])
+          x2 = real(left + to[0])
+          y2 = real(bottom + to[1])
+          @segments["#{x1} #{y1} m\n#{x2} #{y2} l"] = true
         end
       end
 

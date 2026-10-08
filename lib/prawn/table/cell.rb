@@ -866,6 +866,10 @@ module Prawn
       #
       def each_border_segment(pt)
         x, y = pt
+        # Read at most once per call: for the master cell of a span group,
+        # #width and #height walk all of the cell's dummy cells, and up to
+        # three borders need the same value.
+        w = h = nil
 
         @borders.each do |border|
           idx = BORDER_INDEXES[border]
@@ -874,24 +878,28 @@ module Prawn
           next if border_width <= 0
 
           # Left and right borders are drawn one-half border beyond the center
-          # of the corner, so that the corners end up square.
-          from, to =
-            case border
-            when :top
-              [[x, y], [x + width, y]]
-            when :bottom
-              [[x, y - height], [x + width, y - height]]
-            when :left
-              [
-                [x, y + (border_top_width / 2.0)],
-                [x, y - height - (border_bottom_width / 2.0)],
-              ]
-            when :right
-              [
-                [x + width, y + (border_top_width / 2.0)],
-                [x + width, y - height - (border_bottom_width / 2.0)],
-              ]
-            end
+          # of the corner, so that the corners end up square. Endpoints are
+          # assigned directly rather than destructured from a wrapper array.
+          case border
+          when :top
+            w ||= width
+            from = [x, y]
+            to = [x + w, y]
+          when :bottom
+            h ||= height
+            w ||= width
+            from = [x, y - h]
+            to = [x + w, y - h]
+          when :left
+            h ||= height
+            from = [x, y + (border_top_width / 2.0)]
+            to = [x, y - h - (border_bottom_width / 2.0)]
+          when :right
+            w ||= width
+            h ||= height
+            from = [x + w, y + (border_top_width / 2.0)]
+            to = [x + w, y - h - (border_bottom_width / 2.0)]
+          end
 
           yield @border_lines[idx], border_width, @border_colors[idx], from, to
         end
