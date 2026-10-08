@@ -579,6 +579,160 @@ RSpec.describe "Prawn::Table::Cell" do
     end
   end
 
+  describe "text vertical alignment" do
+    include CellHelpers
+
+    dejavu_sans = "#{Prawn::DATADIR}/fonts/DejaVuSans.ttf"
+
+    # Draws a text cell with no padding or borders whose content box is
+    # +height+ points tall and whose top edge is at +top+, and returns the y
+    # positions of the baselines it drew along with the text box it drew them
+    # with.
+    #
+    # A cell renders into a bounding box one point taller than its content
+    # area (Cell::FPTolerance); the text box is positioned in that frame, so
+    # :top and :bottom below name its edges.
+    def draw_text(content, options = {}, height: 40, top: 100)
+      defaults = { :height => height, :padding => 0, :border_width => 0 }
+      c = cell(defaults.merge(:content => content).merge(options))
+
+      box = nil
+      allow(c).to receive(:text_box).and_wrap_original do |original, *args|
+        box = original.call(*args)
+      end
+
+      c.draw([0, top])
+      drawn = PDF::Inspector::Text.analyze(@pdf.render)
+
+      # Inspector positions are absolute; the cell was drawn relative to the
+      # current bounds.
+      frame_top = @pdf.bounds.absolute_bottom + top - c.padding_top
+
+      {
+        :box => box,
+        :baselines => drawn.positions.map { |position| position[1] },
+        :top => frame_top,
+        :bottom => frame_top -
+          (c.spanned_content_height + Prawn::Table::Cell::FPTolerance),
+      }
+    end
+
+    # Gaps between the ink (the first line's ascender tops and the last
+    # line's descender bottoms) and the box that ink was positioned in.
+    def ink_gaps(drawn)
+      {
+        :top => drawn[:top] -
+          (drawn[:baselines].first + drawn[:box].ascender),
+        :bottom => (drawn[:baselines].last - drawn[:box].descender) -
+          drawn[:bottom],
+      }
+    end
+
+    top_valigns = [nil, :top]
+
+    [
+      ["the built-in Helvetica font", {}],
+      ["a TrueType font", { :font => dejavu_sans }],
+    ].each do |font_description, font_options|
+      context "with #{font_description}" do
+        top_valigns.each do |valign|
+          it "splits the line gap above and below #{valign || 'default'} aligned text" do
+            drawn = draw_text(
+              "gypqj", font_options.merge(:valign => valign),
+            )
+            gaps = ink_gaps(drawn)
+
+            expect(gaps[:top]).to be_within(0.01)
+              .of(drawn[:box].line_gap / 2)
+            expect(gaps[:bottom]).to be >= 0
+          end
+        end
+
+        it "centres text in the cell, descenders included" do
+          drawn = draw_text("gypqj", font_options.merge(:valign => :center))
+          gaps = ink_gaps(drawn)
+
+          expect(gaps[:top]).to be_within(0.01).of(gaps[:bottom])
+          expect(gaps[:bottom]).to be >= 0
+        end
+
+        it "bottoms the descender out on the cell's bottom edge" do
+          drawn = draw_text("gypqj", font_options.merge(:valign => :bottom))
+          gaps = ink_gaps(drawn)
+
+          expect(gaps[:bottom]).to be_within(0.01).of(0)
+        end
+
+        it "centres multiline text in the cell, descenders included" do
+          drawn = draw_text(
+            "gypqj\nqypgj", font_options.merge(:valign => :center),
+            :height => 60,
+          )
+          gaps = ink_gaps(drawn)
+
+          expect(drawn[:baselines].size).to eq 2
+          expect(gaps[:top]).to be_within(0.01).of(gaps[:bottom])
+          expect(gaps[:bottom]).to be >= 0
+        end
+
+        it "bottoms multiline descenders out on the cell's bottom edge" do
+          drawn = draw_text(
+            "gypqj\nqypgj", font_options.merge(:valign => :bottom),
+            :height => 60,
+          )
+          gaps = ink_gaps(drawn)
+
+          expect(gaps[:bottom]).to be_within(0.01).of(0)
+        end
+
+        it "splits the line gap above multiline top-aligned text" do
+          drawn = draw_text(
+            "gypqj\nqypgj", font_options.merge(:valign => :top),
+            :height => 60,
+          )
+
+          expect(ink_gaps(drawn)[:top]).to be_within(0.01)
+            .of(drawn[:box].line_gap / 2)
+        end
+      end
+    end
+
+    context "with inline-formatted text mixing fonts and sizes" do
+      let(:content) do
+        "<font name='Courier'>Agy</font><font size='18'>jqp</font>"
+      end
+
+      it "centres the whole line, descenders included" do
+        drawn = draw_text(
+          content, { :valign => :center, :inline_format => true },
+        )
+        gaps = ink_gaps(drawn)
+
+        expect(gaps[:top]).to be_within(0.01).of(gaps[:bottom])
+        expect(gaps[:bottom]).to be >= 0
+      end
+
+      it "bottoms the descender out on the cell's bottom edge" do
+        drawn = draw_text(
+          content, { :valign => :bottom, :inline_format => true },
+        )
+        gaps = ink_gaps(drawn)
+
+        expect(gaps[:bottom]).to be_within(0.01).of(0)
+      end
+    end
+
+    it "does not change a cell's measured or drawn height" do
+      heights =
+        [nil, :top, :center, :bottom].map do |valign|
+          c = cell(:content => "gypqj", :valign => valign, :width => 100)
+          [c.natural_content_height, c.height]
+        end
+
+      expect(heights.uniq.size).to eq 1
+    end
+  end
+
   describe "text height cache" do
     include CellHelpers
 

@@ -796,6 +796,28 @@ RSpec.describe "Prawn::Table" do
       ).to eq 2
     end
 
+    it "paginates and sizes rows independently of vertical alignment" do
+      data = Array.new(60) { |i| ["Row #{i}", "gypqj"] }
+      alignments = [nil, :top, :center, :bottom]
+
+      pages =
+        alignments.map { |valign|
+          Prawn::Document.new do
+            table(data, :cell_style => { :valign => valign })
+          end.page_count
+        }
+      heights =
+        alignments.map { |valign|
+          pdf = Prawn::Document.new
+          pdf.make_table(data.first(3), :cell_style => { :valign => valign })
+            .height
+        }
+
+      expect(pages.uniq.size).to eq 1
+      expect(pages.first).to be > 1
+      expect(heights.uniq.size).to eq 1
+    end
+
     it "should_not start a new page before finishing out a row" do
       expect(
         Prawn::Document.new do

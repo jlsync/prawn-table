@@ -24,7 +24,7 @@ GIT
 
 GIT
   remote: https://github.com/jlsync/prawn.git
-  revision: 8b1b7e0f737524ae6cf803c3d9592152d1716489
+  revision: 0aee64c07734a2510746dd970e9a0c4edf083a95
   specs:
     prawn (2.5.0)
       matrix (~> 0.4)
