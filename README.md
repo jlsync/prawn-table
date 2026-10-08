@@ -20,6 +20,12 @@ anyone interested in helping maintain it.
 * Prawn. The `Gemfile` consumes the [jlsync fork of
   prawn](https://github.com/jlsync/prawn), along with its `pdf-core` and
   `ttfunk` forks, which carry performance fixes that are not yet in a release.
+  Exact vertical alignment of `:center` and `:bottom` text cells relies on the
+  fork's "Center text boxes including their descenders" fix (jlsync/prawn
+  `0aee64c`). A released Prawn still centers `:center` cell text about half a
+  descender low; the cells stay within their box, but they are not exactly
+  centered. The gemspec's `prawn >= 1.3.0, < 3.0.0` constraint does not exclude
+  such versions, since the library otherwise works with them.
 
 ## Documentation
 
