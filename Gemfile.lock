@@ -1,6 +1,7 @@
 GIT
   remote: https://github.com/jlsync/pdf-core.git
   revision: e03df97489dc55e101caa758ed23b004f7ba0ec3
+  branch: master
   specs:
     pdf-core (0.10.0)
 
@@ -24,7 +25,8 @@ GIT
 
 GIT
   remote: https://github.com/jlsync/prawn.git
-  revision: 0aee64c07734a2510746dd970e9a0c4edf083a95
+  revision: 3b631db16529723a750ba4a9adffafaf9a107509
+  branch: master
   specs:
     prawn (2.5.0)
       matrix (~> 0.4)
@@ -33,7 +35,8 @@ GIT
 
 GIT
   remote: https://github.com/jlsync/ttfunk.git
-  revision: f5d2d5a50076543cc015eea712627776f392646b
+  revision: 6a2cb02428dd742ef14728aa1c0a29fd9469967b
+  branch: master
   specs:
     ttfunk (1.8.0)
 
