@@ -848,14 +848,18 @@ RSpec.describe "Prawn::Table::Cell" do
     end
 
     it "bounds storage and keeps repeated labels after many unique values" do
-      c = height_cell(:content => 'Label')
+      # Wrapping content, so that these measurements land in the cache under
+      # their text rather than in the one-line cache (see the specs below).
+      c = height_cell(:content => 'Label ' * 12)
       height = c.natural_content_height
-      2100.times { |i| height_cell(:content => "Unique #{i}").natural_content_height }
+      2100.times do |i|
+        height_cell(:content => "Unique #{i} " * 8).natural_content_height
+      end
       cache = @pdf.instance_variable_get(:@prawn_table_text_heights)
       expect(cache.size).to eq 2048
       expect(c).to_not receive(:text_box)
       expect(c.natural_content_height).to eq height
-      unseen = height_cell(:content => 'Unseen')
+      unseen = height_cell(:content => 'Unseen ' * 8)
       2.times do
         expect(unseen).to receive(:text_box).and_call_original
         unseen.natural_content_height
@@ -954,6 +958,190 @@ RSpec.describe "Prawn::Table::Cell" do
       c = klass.new(@pdf, [0, @pdf.cursor], :content => 'Label', :width => 100)
       expect(c).to receive(:text_box).twice.and_call_original
       2.times { c.natural_content_height }
+    end
+
+    # Text that fits its box is laid out on one line whatever the characters
+    # are, so its measured height depends on the font and the frame but not on
+    # the string. One measurement can therefore answer for every short cell in
+    # the document; these specs pin that down.
+
+    it "shares one measurement between short cells of different text" do
+      first = height_cell(:content => 'Label', :width => 100)
+      height = first.natural_content_height
+      expect(height).to eq uncached_height(first)
+
+      second = height_cell(:content => 'Another', :width => 100)
+      expect(second).to_not receive(:text_box)
+      expect(second.natural_content_height).to eq height
+
+      # ... including the cells of a table built afterwards.
+      expect(Prawn::Text::Box).to_not receive(:new)
+      table = @pdf.make_table(
+        [%w[one two three]], :column_widths => [100, 100, 100],
+      )
+      expect(table.height).to eq first.height
+    end
+
+    it "measures a short cell exactly as an uncached layout" do
+      contents = [
+        'a', 'M', 'hello world', ' leading', 'trailing ', 'x' * 79,
+        'a b c d e f g', '1234567890', 'Café', '---', 'i' * 40,
+      ]
+      variants = [
+        {}, { :kerning => true }, { :align => :right }, { :size => 8 },
+        { :leading => 3 }, { :font_style => :bold }, { :valign => :top },
+        { :single_line => true },
+      ]
+      [30, 60, 100, 400].each do |width|
+        contents.each do |content|
+          variants.each do |variant|
+            c = height_cell(variant.merge(:content => content, :width => width))
+            expected = uncached_height(c)
+            expect(c.natural_content_height).to eq expected
+          end
+        end
+      end
+    end
+
+    it "does not reuse a one-line measurement for text that wraps" do
+      short = height_cell(:content => 'Label', :width => 100)
+      one_line = short.natural_content_height
+
+      long = height_cell(:content => 'Label ' * 25, :width => 100)
+      expect(long.natural_content_height).to be > one_line
+      expect(long.natural_content_height).to eq uncached_height(long)
+    end
+
+    it "bounds one-line storage and keeps serving stored measurements" do
+      c = height_cell(:content => 'Label', :width => 100)
+      height = c.natural_content_height
+
+      200.times do |i|
+        # A distinct font size per iteration is what produces a distinct cache
+        # key; the text stays short so every cell still fits on one line.
+        @pdf.font_size(4 + (i * 0.01)) do
+          height_cell(:content => 'Label', :width => 100).natural_content_height
+        end
+      end
+
+      cache = @pdf.instance_variable_get(:@prawn_table_line_heights)
+      expect(cache.size).to be <= 128
+      expect(c).to_not receive(:text_box)
+      expect(c.natural_content_height).to eq height
+    end
+
+    it "serves cells whose options alternate between columns" do
+      left = height_cell(:content => 'Label', :width => 100, :align => :left)
+      right = height_cell(:content => 'Label', :width => 100, :align => :right)
+      left_height = left.natural_content_height
+      right_height = right.natural_content_height
+
+      [[left, left_height], [right, right_height]].each do |cell, height|
+        expect(cell).to_not receive(:text_box)
+        expect(cell.natural_content_height).to eq height
+      end
+    end
+
+    it "measures again when content changes after a width was read" do
+      c = height_cell(:content => 'Hi', :width => 100)
+      c.natural_content_height
+
+      c.content = 'Hello world, this is a much longer string that wraps'
+      expect(c.natural_content_height).to eq uncached_height(c)
+    end
+
+    it "measures exactly across the widths where its text starts to wrap" do
+      # Just either side of the point where a string stops fitting is where a
+      # difference between the fit test and Prawn's own line breaking would
+      # show. The first string is a stress case: positive kerning makes the
+      # laid-out line wider than the string measured in one piece. The second
+      # is the other direction: Helvetica tightens "e Y", which the wrapper
+      # never applies across the space, so measuring the string in one piece
+      # with kerning would make it look narrower than the wrapper's sum.
+      contents = [
+        'r: r: r: r: r: r: r: r:', 'a Y a Y a Y a Y a Y',
+        'the quick brown fox jumps', 'Holiday Title', 'a b c d e f g h',
+        '2026-09-01 2026-09-02',
+      ]
+      # Prime the shared measurement with text that fits, so a cell wrongly
+      # accepted as one line shows up as the one-line height instead of
+      # storing, and then correctly reusing, its own wrapped height.
+      height_cell(:content => 'Label', :width => 100).natural_content_height
+
+      contents.each do |content|
+        probe = height_cell(:content => content, :width => 400)
+        base = probe.__send__(:with_font) { @pdf.width_of(content) }
+
+        (-8..8).each do |step|
+          width = base + (step * 0.25) + 10
+          next if width <= 11
+
+          c = height_cell(:content => content, :width => width)
+          expect(c.natural_content_height).to eq uncached_height(c)
+        end
+      end
+    end
+
+    it "measures exactly with kerning off and negative character spacing" do
+      @pdf.default_kerning = false
+      content = 'a b c d e f g h i j k l'
+
+      @pdf.character_spacing(-0.25) do
+        # Prime the shared measurement with text that fits, so that a cell
+        # wrongly accepted as one line would show up as the one-line height
+        # rather than storing (and then correctly reusing) its own wrapped one.
+        height_cell(:content => 'Label', :width => 100).natural_content_height
+
+        base = @pdf.width_of(content)
+        (-6..6).each do |step|
+          c = height_cell(:content => content, :width => base + (step * 0.5) + 10)
+          expect(c.natural_content_height).to eq uncached_height(c)
+        end
+      end
+    end
+
+    it "measures whitespace-only content exactly" do
+      [' ', '   ', "\t"].each do |content|
+        c = height_cell(:content => content, :width => 100)
+        expect(c.natural_content_height).to eq uncached_height(c)
+      end
+    end
+
+    it "does not let whitespace-only content change a label's height" do
+      # Whitespace-only cells measure to a line's height like any other, so
+      # whichever of the two is measured first must not change the other.
+      [['Label', ' '], [' ', 'Label']].each do |first, second|
+        height_cell(:content => first, :width => 100).natural_content_height
+        second_cell = height_cell(:content => second, :width => 100)
+        expect(second_cell.natural_content_height).to eq uncached_height(second_cell)
+      end
+    end
+
+    it "measures content in a non-UTF-8 encoding" do
+      content = 'Café au lait'.encode('ISO-8859-1')
+      c = height_cell(:content => content, :width => 100)
+      expect(c.natural_content_height).to eq uncached_height(c)
+    end
+
+    it "does not share a measurement between different frame heights" do
+      full = height_cell(:content => 'Label', :width => 100).natural_content_height
+
+      @pdf.bounding_box([0, 100], :width => 100, :height => 8) do
+        c = height_cell(:content => 'Label', :width => 100)
+        expect(c.natural_content_height).to be < full
+        expect(c.natural_content_height).to eq uncached_height(c)
+      end
+    end
+
+    it "does not use the one-line measurement in stretchy bounds" do
+      c = height_cell(:content => 'Label', :width => 100)
+      c.natural_content_height
+
+      @pdf.bounding_box([0, 100], :width => 100) do
+        expected = uncached_height(c)
+        expect(c).to receive(:text_box).and_call_original
+        expect(c.natural_content_height).to eq expected
+      end
     end
   end
 

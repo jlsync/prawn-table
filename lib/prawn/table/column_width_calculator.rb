@@ -8,12 +8,6 @@ module Prawn
         @cells = cells
 
         @widths_by_column = Hash.new(0)
-        @rows_with_a_span_dummy = Hash.new(false)
-
-        # calculate for each row if it includes a Cell:SpanDummy
-        @cells.each do |cell|
-          @rows_with_a_span_dummy[cell.row] = true if cell.is_a?(Cell::SpanDummy)
-        end
       end
 
       # does this row include a Cell:SpanDummy?
@@ -21,7 +15,7 @@ module Prawn
       # @param row - the row that should be checked for Cell:SpanDummy elements
       #
       def has_a_span_dummy?(row)
-        @rows_with_a_span_dummy[row]
+        span_dummy_rows[row]
       end
 
       # helper method
@@ -71,7 +65,7 @@ module Prawn
       end
 
       def natural_widths
-        if @rows_with_a_span_dummy.empty?
+        if span_dummy_rows.empty?
           @cells.each do |cell|
             w = cell.width.to_f
             @widths_by_column[cell.column] = w if w > @widths_by_column[cell.column]
@@ -130,6 +124,11 @@ module Prawn
       def aggregate_cell_values(row_or_column, meth, aggregate)
         values = {}
 
+        # Whether anything below can need the second pass: only colspanned
+        # cells (aggregated by column) and span dummies do. Most tables have
+        # neither, and then that pass would walk every cell to do nothing.
+        spanned_cells = false
+
         # calculate values for all cells that do not span across multiple cells
         # this ensures that we don't have a problem if the first line includes
         # a cell that spans across multiple cells
@@ -137,12 +136,20 @@ module Prawn
         # towards its own row like any other
         @cells.each do |cell|
           # don't take spanned cells
-          next if cell.class == Prawn::Table::Cell::SpanDummy
-          next if row_or_column == :column && cell.colspan > 1
+          if cell.class == Prawn::Table::Cell::SpanDummy
+            spanned_cells = true
+            next
+          end
+          if row_or_column == :column && cell.colspan > 1
+            spanned_cells = true
+            next
+          end
 
           index = (row_or_column == :row ? cell.row : cell.column)
           values[index] = aggregate_value(values[index], cell.send(meth), aggregate)
         end
+
+        return values.each_value.sum unless spanned_cells
 
         # if there are only colspanned or rowspanned cells in a table
         spanned_width_needs_fixing = true
@@ -185,6 +192,21 @@ module Prawn
       end
 
       private
+
+      # Which rows contain a Cell::SpanDummy. Worked out on first use: most
+      # tables have no spans, and those that do only ask while laying out
+      # colspanned cells, so the pass over every cell is often unnecessary.
+      #
+      def span_dummy_rows
+        @span_dummy_rows ||=
+          begin
+            rows = Hash.new(false)
+            @cells.each do |cell|
+              rows[cell.row] = true if cell.is_a?(Cell::SpanDummy)
+            end
+            rows
+          end
+      end
 
       # Same result as [current, value].compact.send(aggregate), without
       # allocating two arrays per cell.
