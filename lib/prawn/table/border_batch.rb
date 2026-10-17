@@ -28,6 +28,10 @@ module Prawn
     class BorderBatch
       LINE_STYLES = %i[solid dashed dotted].freeze
 
+      # The same three styles as a Hash, because #add tests membership once per
+      # style change and Array#include? runs up to three comparisons.
+      LINE_STYLE_LOOKUP = LINE_STYLES.to_h { |style| [style, true] }.freeze
+
       # Sentinel cache key for negative zero. Float -0.0 and 0.0 are eql? and
       # hash alike, but PDF::Core.real writes them as "-0.0" and "0.0", so they
       # must not share a memo slot.
@@ -63,7 +67,7 @@ module Prawn
 
         cell.each_border_segment(point) do |line, width, color, from, to|
           unless line == @line && width == @width && color == @color
-            unless LINE_STYLES.include?(line)
+            unless LINE_STYLE_LOOKUP[line]
               raise ArgumentError, 'border_line must be :solid, :dotted or :dashed'
             end
 

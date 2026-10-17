@@ -1,5 +1,25 @@
 ## Master
 
+* Measure one line of text once per font, size, frame and option set rather than
+  once per cell. Prawn takes a line's height from the metrics of the font it is
+  set in, not from the characters in it, so any two cells whose text fits their
+  box without wrapping measure to the same height. Cells that are known to be one
+  line -- no markup, no newlines, no option that changes the layout, and text
+  that fits when measured the way Prawn's line wrapper measures it, kerning
+  and character spacing included -- now share the first such measurement instead of laying their text
+  out again. Anything that might wrap, and every subclass that overrides how a
+  cell measures itself, takes the same path as before, and the shared value is
+  still taken from a real text box layout rather than derived from font metrics.
+  A table of short values (ids, dates, codes, names) renders about 26% faster and
+  allocates about 26% fewer objects, and measuring cells is no longer the largest
+  part of building one. (The widest cell in each auto-sized column measures
+  normally, since it is the one that defines the column's width.) The generated
+  manual renders byte for byte the same as before.
+* Skip per-cell work that most tables never need: build the span-dummy row index
+  only when a colspanned cell asks for it, skip the second aggregation pass over
+  the cells when nothing in the selection spans, use one Array instead of two
+  for each of a cell's default border arrays, and look up the border line style
+  in a Hash rather than an Array.
 * Bugfix: Position text cells the way Prawn measures them. A text box's height
   runs from the first line's ascender to the last line's descender, and a cell's
   height adds one line gap on top of that, so top-aligned (and default) text now

@@ -239,12 +239,13 @@ module Prawn
         @pdf = pdf
         @point = point
 
-        # Set defaults; these can be changed by options
+        # Set defaults; these can be changed by options. Written as literals
+        # rather than `[1] * 4` so that each default costs one Array, not two.
         @padding = [5, 5, 5, 5]
         @borders = [:top, :bottom, :left, :right]
-        @border_widths = [1] * 4
-        @border_colors = ['000000'] * 4
-        @border_lines = [:solid] * 4
+        @border_widths = [1, 1, 1, 1]
+        @border_colors = %w[000000 000000 000000 000000]
+        @border_lines = [:solid, :solid, :solid, :solid]
         @colspan = 1
         @rowspan = 1
         @dummy_cells = []
