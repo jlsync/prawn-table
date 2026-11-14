@@ -319,12 +319,26 @@ module Prawn
         # page is finished.
         cells_this_page = []
 
+        bounds = @pdf.bounds
+        left_side = bounds.left_side
+        abs_left = bounds.absolute_left
+        abs_bottom = bounds.absolute_bottom
+        standard_rel_classes =
+          Hash.new do |h, k|
+            h[k] = k.instance_method(:relative_x).owner.equal?(Cell) &&
+              k.instance_method(:relative_y).owner.equal?(Cell)
+          end
+
         @cells.each do |cell|
           if start_new_page?(cell, offset, ref_bounds)
             # draw cells on the current page and then start a new one
             # this will also add a header to the new page if a header is set
             # reset array of cells for the new page
             cells_this_page, offset = ink_and_draw_cells_and_start_new_page(cells_this_page, cell)
+            bounds = @pdf.bounds
+            left_side = bounds.left_side
+            abs_left = bounds.absolute_left
+            abs_bottom = bounds.absolute_bottom
 
             # remember the current row for background coloring
             started_new_page_at_row = cell.row
@@ -334,7 +348,13 @@ module Prawn
           cell = set_background_color(cell, started_new_page_at_row)
 
           # add the current cell to the cells array for the current page
-          cells_this_page << [cell, [cell.relative_x, cell.relative_y(offset)]]
+          pt =
+            if standard_rel_classes[cell.class]
+              [cell.x + left_side - abs_left, cell.y + offset - abs_bottom]
+            else
+              [cell.relative_x, cell.relative_y(offset)]
+            end
+          cells_this_page << [cell, pt]
         end
 
         # Draw the last page of cells
@@ -400,18 +420,26 @@ module Prawn
     def row_heights
       @natural_row_heights ||=
         begin
-          heights_by_row = Hash.new(0)
+          n_rows = row_length
+          heights = Array.new(n_rows, 0)
           cells.each do |cell|
             next if cell.is_a?(Cell::SpanDummy)
 
             # Split the height of row-spanned cells evenly by rows
-            height_per_row = cell.height.to_f / cell.rowspan
-            cell.rowspan.times do |i|
-              r = cell.row + i
-              heights_by_row[r] = height_per_row if height_per_row > heights_by_row[r]
+            rowspan = cell.rowspan
+            if rowspan == 1
+              r = cell.row
+              h = cell.height.to_f
+              heights[r] = h if r >= 0 && r < n_rows && h > heights[r]
+            else
+              height_per_row = cell.height.to_f / rowspan
+              rowspan.times do |i|
+                r = cell.row + i
+                heights[r] = height_per_row if r >= 0 && r < n_rows && height_per_row > heights[r]
+              end
             end
           end
-          (0...row_length).map { |row| heights_by_row[row] }
+          heights
         end
     end
 
@@ -565,13 +593,15 @@ module Prawn
           end
 
           # Build the cell and store it in the Cells collection.
-          cell =
-            if cell_data.is_a?(Hash)
-              Cell.make(@pdf, cell_style.empty? ? cell_data : cell_style.merge(cell_data))
-            else
-              Cell.make(@pdf, cell_data, cell_style)
-            end
-          cells[row_number, column_number] = cell
+          if cell_data.is_a?(Hash)
+            cell = Cell.make(@pdf, cell_style.empty? ? cell_data : cell_style.merge(cell_data))
+            from_user_cell = cell_data[:content].is_a?(Cell) ||
+              (!cell_style.empty? && cell_style[:content].is_a?(Cell))
+            cells.put(row_number, column_number, cell, from_user_cell)
+          else
+            cell = Cell.make(@pdf, cell_data, cell_style)
+            cells.put(row_number, column_number, cell, cell_data.is_a?(Cell))
+          end
 
           r_end = row_number + cell.rowspan
           c_end = column_number + cell.colspan
@@ -598,7 +628,7 @@ module Prawn
                 end
 
                 dummy = Cell::SpanDummy.new(@pdf, cell)
-                cells[row_number + i, column_number + j] = dummy
+                cells.put(row_number + i, column_number + j, dummy)
                 cell.dummy_cells << dummy
               end
             end
@@ -647,13 +677,15 @@ module Prawn
       rows_to_operate_on = @header_row.rows(row_of_header) if row_of_header
       rows_to_operate_on.each do |cell|
         cell.row = row
-        cell.dummy_cells.each do |c|
-          if cell.rowspan > 1
-            # be sure to account for cells that span multiple rows
-            # in this case you need multiple row numbers
-            c.row += row
-          else
-            c.row = row
+        if cell.rowspan > 1 || cell.colspan > 1
+          cell.dummy_cells.each do |c|
+            if cell.rowspan > 1
+              # be sure to account for cells that span multiple rows
+              # in this case you need multiple row numbers
+              c.row += row
+            else
+              c.row = row
+            end
           end
         end
         page_of_cells << [cell, [cell.x + x_offset, y]]

@@ -48,9 +48,18 @@ module Prawn
         @old_line_width = pdf.line_width
         @old_stroke_color = pdf.stroke_color
         @line = @width = @color = nil
-        @segments = {}
+        @segments = by_style ? nil : {}
         # [line, width, color] => segments, in order of first appearance.
-        @paths = {}
+        @paths = by_style ? {} : nil
+        # Reusable endpoint buffers passed to Cell#each_border_segment_buffered
+        # so batching does not allocate two Arrays per border segment.
+        @from = [0, 0]
+        @to = [0, 0]
+        @buffered_segment_classes =
+          Hash.new do |h, k|
+            h[k] = k.method_defined?(:each_border_segment_buffered) &&
+              k.instance_method(:each_border_segment).owner.equal?(Cell)
+          end
         # PDF::Core.real is a pure function, and border coordinates repeat
         # heavily (every corner is an endpoint of several segments), so each
         # distinct value is serialized once. The cache lives and dies with the
@@ -62,27 +71,17 @@ module Prawn
       #
       def add(cell, point)
         bounds = @pdf.bounds
-        left = bounds.absolute_left
-        bottom = bounds.absolute_bottom
+        @left = bounds.absolute_left
+        @bottom = bounds.absolute_bottom
 
-        cell.each_border_segment(point) do |line, width, color, from, to|
-          unless line == @line && width == @width && color == @color
-            unless LINE_STYLE_LOOKUP[line]
-              raise ArgumentError, 'border_line must be :solid, :dotted or :dashed'
-            end
-
-            start_path(line, width, color)
+        if @buffered_segment_classes[cell.class]
+          cell.each_border_segment_buffered(point, @from, @to) do |line, width, color, from, to|
+            record_segment(line, width, color, from, to)
           end
-
-          # The same operators Graphics#move_to and #line_to would write, so
-          # the duplicate check compares exactly what ends up in the PDF. One
-          # interpolated literal: adjacent interpolated literals each allocate
-          # an intermediate String before being joined.
-          x1 = real(left + from[0])
-          y1 = real(bottom + from[1])
-          x2 = real(left + to[0])
-          y2 = real(bottom + to[1])
-          @segments["#{x1} #{y1} m\n#{x2} #{y2} l"] = true
+        else
+          cell.each_border_segment(point) do |line, width, color, from, to|
+            record_segment(line, width, color, from, to)
+          end
         end
       end
 
@@ -114,6 +113,26 @@ module Prawn
       end
 
       private
+
+      def record_segment(line, width, color, from, to)
+        unless line == @line && width == @width && color == @color
+          unless LINE_STYLE_LOOKUP[line]
+            raise ArgumentError, 'border_line must be :solid, :dotted or :dashed'
+          end
+
+          start_path(line, width, color)
+        end
+
+        # The same operators Graphics#move_to and #line_to would write, so
+        # the duplicate check compares exactly what ends up in the PDF. One
+        # interpolated literal: adjacent interpolated literals each allocate
+        # an intermediate String before being joined.
+        x1 = real(@left + from[0])
+        y1 = real(@bottom + from[1])
+        x2 = real(@left + to[0])
+        y2 = real(@bottom + to[1])
+        @segments["#{x1} #{y1} m\n#{x2} #{y2} l"] = true
+      end
 
       # +num+ as PDF::Core.real would serialize it, computed once per distinct
       # value in this batch.

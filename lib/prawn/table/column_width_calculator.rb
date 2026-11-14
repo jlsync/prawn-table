@@ -6,8 +6,6 @@ module Prawn
     class ColumnWidthCalculator
       def initialize(cells)
         @cells = cells
-
-        @widths_by_column = Hash.new(0)
       end
 
       # does this row include a Cell:SpanDummy?
@@ -65,6 +63,7 @@ module Prawn
       end
 
       def natural_widths
+        @widths_by_column ||= Hash.new(0)
         if span_dummy_rows.empty?
           @cells.each do |cell|
             w = cell.width.to_f

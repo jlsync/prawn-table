@@ -153,7 +153,9 @@ module Prawn
       # this span group. They know their own width / height, but do not draw
       # anything.
       #
-      attr_reader :dummy_cells
+      def dummy_cells
+        @dummy_cells ||= []
+      end
 
       # A hash of options to be passed as options to subtables
       #
@@ -248,7 +250,6 @@ module Prawn
         @border_lines = [:solid, :solid, :solid, :solid]
         @colspan = 1
         @rowspan = 1
-        @dummy_cells = []
 
         style(options)
 
@@ -490,7 +491,8 @@ module Prawn
             if cell.singleton_methods.empty?
               unoverridden_classes[cell.class]
             else
-              cell.method(:draw_borders).owner.equal?(Cell)
+              cell.method(:draw_borders).owner.equal?(Cell) &&
+                cell.method(:each_border_segment).owner.equal?(Cell)
             end
           }
         if (first = batched.index(true))
@@ -636,7 +638,7 @@ module Prawn
       def border_color=(color)
         @border_colors =
           if color.nil?
-            ["000000"] * 4
+            %w[000000 000000 000000 000000]
           elsif color.is_a?(String) # all colors
             [color, color, color, color]
           elsif color.length == 2 # vert, horiz
@@ -762,9 +764,10 @@ module Prawn
       def border_line=(line)
         @border_lines =
           if line.nil?
-            [:solid] * 4
+            [:solid, :solid, :solid, :solid]
           elsif line.length == 1 # all lines
-            [line[0]] * 4
+            val = line[0]
+            [val, val, val, val]
           elsif line.length == 2
             [line[0], line[1], line[0], line[1]]
           elsif line.length == 3
@@ -865,44 +868,73 @@ module Prawn
       # +pt+, in drawing order, as <tt>line, width, color, from, to</tt>.
       # Borders with no width are skipped.
       #
-      def each_border_segment(pt)
+      def each_border_segment(pt, &block)
+        each_border_segment_buffered(pt, nil, nil, &block)
+      end
+
+      # Internal variant of #each_border_segment that writes endpoints into
+      # caller-supplied 2-element +from_buf+ and +to_buf+ Arrays when provided.
+      #
+      def each_border_segment_buffered(pt, from_buf, to_buf) # :nodoc:
         x, y = pt
         # Read at most once per call: for the master cell of a span group,
         # #width and #height walk all of the cell's dummy cells, and up to
         # three borders need the same value.
         w = h = nil
+        top_half = bottom_half = nil
 
-        @borders.each do |border|
-          idx = BORDER_INDEXES[border]
+        i = 0
+        borders = @borders
+        while i < borders.length
+          idx = BORDER_INDEXES[borders[i]]
+          i += 1
           border_width = @border_widths[idx]
-
           next if border_width <= 0
 
           # Left and right borders are drawn one-half border beyond the center
-          # of the corner, so that the corners end up square. Endpoints are
-          # assigned directly rather than destructured from a wrapper array.
-          case border
+          # of the corner, so that the corners end up square.
+          case borders[i - 1]
           when :top
             w ||= width
-            from = [x, y]
-            to = [x + w, y]
+            x1 = x
+            y1 = y
+            x2 = x + w
+            y2 = y
           when :bottom
             h ||= height
             w ||= width
-            from = [x, y - h]
-            to = [x + w, y - h]
+            x1 = x
+            y1 = y - h
+            x2 = x + w
+            y2 = y - h
           when :left
             h ||= height
-            from = [x, y + (border_top_width / 2.0)]
-            to = [x, y - h - (border_bottom_width / 2.0)]
+            top_half ||= border_top_width / 2.0
+            bottom_half ||= border_bottom_width / 2.0
+            x1 = x
+            y1 = y + top_half
+            x2 = x
+            y2 = y - h - bottom_half
           when :right
             w ||= width
             h ||= height
-            from = [x + w, y + (border_top_width / 2.0)]
-            to = [x + w, y - h - (border_bottom_width / 2.0)]
+            top_half ||= border_top_width / 2.0
+            bottom_half ||= border_bottom_width / 2.0
+            x1 = x + w
+            y1 = y + top_half
+            x2 = x + w
+            y2 = y - h - bottom_half
           end
 
-          yield @border_lines[idx], border_width, @border_colors[idx], from, to
+          if from_buf && to_buf
+            from_buf[0] = x1
+            from_buf[1] = y1
+            to_buf[0] = x2
+            to_buf[1] = y2
+            yield @border_lines[idx], border_width, @border_colors[idx], from_buf, to_buf
+          else
+            yield @border_lines[idx], border_width, @border_colors[idx], [x1, y1], [x2, y2]
+          end
         end
       end
 

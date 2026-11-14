@@ -1188,6 +1188,47 @@ RSpec.describe "Prawn::Table::Cell" do
       font = @pdf.find_font('Helvetica-Bold')
       expect(c.content_width).to eq font.compute_width_of("text")
     end
+
+    it "does not corrupt Prawn's width cache when cell options are mutated later" do
+      c = cell(:content => "Hello", :size => 10, :align => :right)
+      large_width = c.natural_content_width
+
+      c.size = 8
+      # Push past Ruby's small-table Hash threshold so FontMetricCache rehashes
+      # its options keys; a live mutated Hash key would now collide under size 8.
+      10.times { |i| @pdf.width_of("Hello", :size => 20 + i, :align => :right) }
+
+      expect(@pdf.width_of("Hello", :size => 8, :align => :right)).to be < large_width
+    end
+
+    it "supports subclasses overriding one-arg each_border_segment when batching borders" do
+      custom_class =
+        Class.new(Prawn::Table::Cell::Text) do
+          attr_reader :segments_called
+
+          def each_border_segment(point)
+            @segments_called = true
+            super
+          end
+        end
+
+      c = custom_class.new(@pdf, [0, @pdf.cursor], :content => "bordered")
+      expect { @pdf.table([[c]]) }.to_not raise_error
+      expect(c.segments_called).to be true
+    end
+
+    it "honors relative_x and relative_y overrides when drawing a table" do
+      shifted_class =
+        Class.new(Prawn::Table::Cell::Text) do
+          def relative_x
+            super + 17
+          end
+        end
+
+      shifted = shifted_class.new(@pdf, [0, @pdf.cursor], :content => "hi")
+      expect(shifted).to receive(:draw_bounded_content).with([17, anything]).and_call_original
+      @pdf.table([[shifted]])
+    end
   end
 end
 

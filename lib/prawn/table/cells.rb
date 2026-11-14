@@ -40,13 +40,41 @@ module Prawn
         # an empty row array means it definitely fits
         return true if empty?
 
-        # Find the (lowest row, lowest column) cell, which is what a grid
-        # lookup on this collection would return. Doing it directly avoids
-        # building the row/column/grid indexes for the throwaway Cells object
-        # that #rows hands out on every row of a drawing table.
-        first_cell = min { |a, b| a.row == b.row ? a.column <=> b.column : a.row <=> b.row }
+        # Find the (lowest row, lowest column) cell and track whether every cell
+        # belongs to the same row. In the common single-row case (called once per
+        # row by Table#start_new_page?), the max cell height equals
+        # height_with_span without instantiating ColumnWidthCalculator or
+        # indexing rows/columns/grid.
+        first_cell = nil
+        first_row = nil
+        single_row = instance_of?(Cells)
+        max_height = nil
 
-        height_with_span < (first_cell.y + offset) - ref_bounds.absolute_bottom
+        each do |cell|
+          r = cell.row
+          if first_cell.nil?
+            first_row = r
+            first_cell = cell
+            max_height = cell.height if single_row
+          else
+            if r < first_row
+              single_row = false
+              first_row = r
+              first_cell = cell
+            elsif r == first_row
+              first_cell = cell if cell.column < first_cell.column
+            else
+              single_row = false
+            end
+            if single_row
+              h = cell.height
+              max_height = h if h > max_height
+            end
+          end
+        end
+
+        needed_height = single_row ? max_height : height_with_span
+        needed_height < (first_cell.y + offset) - ref_bounds.absolute_bottom
       end
 
       # @group Experimental API
@@ -129,12 +157,20 @@ module Prawn
         return if empty?
 
         index_cells unless defined?(@indexed) && @indexed
+        @grid ||= each_with_object({}) { |cell, grid| grid[[cell.row, cell.column]] = cell }
         @grid[[@first_row + row, @first_column + col]]
       end
 
       # Puts a cell in the collection at the given position. Internal use only.
       #
       def []=(row, col, cell) # :nodoc:
+        put(row, col, cell, true)
+      end
+
+      # Stores a cell at +row+, +col+, skipping +singleton_methods+ inspection
+      # when the caller knows it just instantiated +cell+. Internal use only.
+      #
+      def put(row, col, cell, check_singleton_methods = false) # :nodoc:
         classes = (@standard_coordinate_cell_classes ||=
                      Hash.new do |h, k|
                        h[k] = k.method_defined?(:row) &&
@@ -146,7 +182,7 @@ module Prawn
                               k.instance_method(:row=).owner.equal?(Cell::InTable) &&
                               k.instance_method(:column=).owner.equal?(Cell::InTable)
                      end)
-        unless cell.singleton_methods.empty? && classes[cell.class]
+        unless classes[cell.class] && (!check_singleton_methods || cell.singleton_methods.empty?)
           cell.singleton_class.prepend(Cell::InTable)
         end
         cell.row = row
@@ -155,7 +191,7 @@ module Prawn
         if defined?(@indexed) && @indexed
           (@rows[row] ||= []) << cell
           (@columns[col] ||= []) << cell
-          @grid[[row, col]] = cell
+          @grid[[row, col]] = cell if defined?(@grid) && @grid
           @first_row = row if !@first_row || row < @first_row
           @first_column = col if !@first_column || col < @first_column
           @row_count = @rows.size
@@ -241,14 +277,12 @@ module Prawn
       def index_cells
         @rows = {}
         @columns = {}
-        @grid = {}
         first_row = nil
         first_column = nil
 
         each do |cell|
           (@rows[cell.row] ||= []) << cell
           (@columns[cell.column] ||= []) << cell
-          @grid[[cell.row, cell.column]] = cell
 
           first_row = cell.row if !first_row || cell.row < first_row
           first_column = cell.column if !first_column || cell.column < first_column

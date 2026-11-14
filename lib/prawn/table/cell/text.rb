@@ -20,7 +20,11 @@ module Prawn
         ]
 
         TextOptions.each do |option|
-          define_method("#{option}=") { |v| @text_options[option] = v }
+          define_method("#{option}=") do |v|
+            @width_options = nil
+            @kerning_width_options = nil
+            @text_options[option] = v
+          end
           define_method(option) { @text_options[option] }
         end
 
@@ -45,6 +49,13 @@ module Prawn
         # empty Hash differently from `{ :style => :normal }`, so a single
         # frozen Hash can stand in for the fresh one built on every call.
         NO_FONT_OPTIONS = {}.freeze
+        KERNING_TRUE_OPTIONS = { :kerning => true }.freeze
+        STYLE_OPTIONS = {
+          :normal => { :style => :normal }.freeze,
+          :bold => { :style => :bold }.freeze,
+          :italic => { :style => :italic }.freeze,
+          :bold_italic => { :style => :bold_italic }.freeze,
+        }.freeze
         # Vertical alignments positioned by the text box itself, which centers
         # or bottoms the measured text out in the cell. The cell must not shift
         # the text first, or it offsets that positioning and lets the descender
@@ -53,7 +64,8 @@ module Prawn
         private_constant :HEIGHT_CACHE_LIMIT, :HEIGHT_CACHE_MAX_TEXT_BYTES,
           :SINGLE_LINE_HEIGHT_CACHE_LIMIT, :SINGLE_LINE_OPTION_SETS,
           :SOFT_HYPHEN, :ZERO_WIDTH_SPACE, :TOKEN_PATTERN,
-          :NO_FONT_OPTIONS, :TEXT_BOX_VALIGNS
+          :NO_FONT_OPTIONS, :KERNING_TRUE_OPTIONS, :STYLE_OPTIONS,
+          :TEXT_BOX_VALIGNS
 
         attr_writer :font
         attr_writer :text_color
@@ -73,6 +85,8 @@ module Prawn
         # +style+ option, but we already have a style method.
         #
         def font_style=(style)
+          @width_options = nil
+          @kerning_width_options = nil
           @text_options[:style] = style
         end
 
@@ -88,10 +102,12 @@ module Prawn
         #
         def natural_content_height
           with_font do
-            cache = natural_height_cache
+            content_width = spanned_content_width
+            env_ok = cacheable_text_environment?
+            cache = env_ok ? natural_height_cache : nil
             if cache && (entry = cache[@content])
               sig = entry[0]
-              if sig[2] == spanned_content_width &&
+              if sig[2] == content_width &&
                   sig[1] == @pdf.font_size &&
                   sig[0] == @pdf.font &&
                   sig[3] == @pdf.bounds.height &&
@@ -107,14 +123,14 @@ module Prawn
             # Checked only after the per-content cache, so that text seen before
             # keeps taking that single lookup: this path costs a key Array and
             # only pays off for text that has not been measured yet.
-            single_line = single_line_height_key
+            single_line = env_ok ? single_line_height_key(content_width) : nil
             height =
               if single_line &&
                   (entries = single_line_heights[single_line]) &&
                   (entry = entries.find { |e| e[0] == @text_options })
                 entry[1]
               else
-                b = text_box(:width => spanned_content_width + FPTolerance)
+                b = text_box(:width => content_width + FPTolerance)
                 b.render(:dry_run => true)
                 measured = b.height + b.line_gap
                 store_single_line_height(single_line, measured) if single_line
@@ -125,11 +141,16 @@ module Prawn
             # produced it, so that the next cell with this text takes the cheap
             # lookup above rather than rebuilding the one-line key.
             if cache
+              options_snap =
+                if @text_options.empty?
+                  NO_FONT_OPTIONS
+                else
+                  @text_options.transform_values(&:dup)
+                end
               signature = [
-                @pdf.font, @pdf.font_size, spanned_content_width,
+                @pdf.font, @pdf.font_size, content_width,
                 @pdf.bounds.height, @pdf.character_spacing, @pdf.default_leading,
-                @pdf.default_kerning?, @pdf.text_direction,
-                @text_options.transform_values(&:dup),
+                @pdf.default_kerning?, @pdf.text_direction, options_snap,
               ]
               cache[@content] = [signature, height]
             end
@@ -190,10 +211,14 @@ module Prawn
           return yield if @font_selected
 
           @pdf.save_font do
-            style = @text_options[:style] || @pdf.font.options[:style]
-            options = style ? { :style => style } : NO_FONT_OPTIONS
+            custom_font = defined?(@font) && @font
+            custom_style = @text_options[:style]
+            if custom_font || custom_style
+              style = custom_style || @pdf.font.options[:style]
+              options = style ? (STYLE_OPTIONS[style] || { :style => style }) : NO_FONT_OPTIONS
 
-            @pdf.font((defined?(@font) && @font) || @pdf.font.family, options)
+              @pdf.font(custom_font || @pdf.font.family, options)
+            end
 
             @font_selected = true
             begin
@@ -237,11 +262,33 @@ module Prawn
         # Returns the width of +text+ under the given text options.
         #
         def styled_width_of(text)
-          options = @text_options.except(:style)
-          with_font { @pdf.width_of(text, options) }
+          with_font { @pdf.width_of(text, width_options) }
         end
 
         private
+
+        # Options snapshot passed to Document#width_of (which Prawn's
+        # FontMetricCache retains by reference as a Hash key for multi-key
+        # option sets). Caching a frozen copy without `:style` keeps setters
+        # on the cell from mutating keys inside FontMetricCache while avoiding
+        # an allocation on repeated width checks.
+        def width_options
+          @width_options ||=
+            if @text_options.empty?
+              NO_FONT_OPTIONS
+            else
+              opts = @text_options.except(:style)
+              opts.empty? ? NO_FONT_OPTIONS : opts.freeze
+            end
+        end
+
+        def cacheable_text_environment?
+          instance_of?(Text) &&
+            !@pdf.bounds.stretchy? &&
+            @pdf.fallback_fonts.empty? &&
+            ::Prawn::Text::Box.extensions.empty? &&
+            ::Prawn::Text::Formatted::Box.extensions.empty?
+        end
 
         # Keep one measurement per short string on this document. Once full,
         # unseen text takes the normal path without allocating a signature.
@@ -254,7 +301,6 @@ module Prawn
         # Inline-formatted text is parsed by Prawn's own formatter from the
         # string and the :inline_format option alone, both part of the key.
         def natural_height_cache
-          return unless instance_of?(Text)
           return if @content.bytesize > HEIGHT_CACHE_MAX_TEXT_BYTES
           return if @text_options[:inline_format] &&
             !@pdf.text_formatter.equal?(::Prawn::Text::Formatted::Parser)
@@ -262,9 +308,6 @@ module Prawn
           cache = @pdf.instance_variable_get(:@prawn_table_text_heights) ||
             @pdf.instance_variable_set(:@prawn_table_text_heights, {})
           return if cache.size >= HEIGHT_CACHE_LIMIT && !cache.key?(@content)
-          return if @pdf.bounds.stretchy? || !@pdf.fallback_fonts.empty? ||
-            !::Prawn::Text::Box.extensions.empty? ||
-            !::Prawn::Text::Formatted::Box.extensions.empty?
 
           cache
         end
@@ -287,18 +330,13 @@ module Prawn
         # different frame, options this cell lays text out with but does not
         # report a width for -- falls through to the full measurement.
         #
-        def single_line_height_key
-          # A subclass may override #text_box or the measurement around it, so
-          # only cells that measure exactly as this class does may skip the
-          # measurement. (The same guard appears in #natural_height_cache.)
-          #
+        def single_line_height_key(content_width = spanned_content_width)
           # The option checks come first because they are a Hash lookup each,
           # and :inline_format is by far the most common reason to decline.
           # :character_spacing, :direction and :fallback_fonts have no setter on
           # this class today, so they cannot appear in @text_options; they are
           # checked so that adding one later cannot silently opt a cell into
           # the fast path.
-          return unless instance_of?(Text)
           return if @text_options[:inline_format]
           return if @text_options[:character_spacing]
 
@@ -333,19 +371,13 @@ module Prawn
           # Newlines start a second line.
           return if @content.include?("\n") || @content.include?("\r")
 
-          # A stretchy bounding box takes its text box height from the nearest
-          # fixed box, and Prawn's layout hooks replace the wrapping entirely.
-          return if @pdf.bounds.stretchy? || !@pdf.fallback_fonts.empty?
-          return if !::Prawn::Text::Box.extensions.empty? ||
-            !::Prawn::Text::Formatted::Box.extensions.empty?
-
           # Cheap first pass: text that does not fit even without kerning
           # cannot be one line. Kerning can narrow a line, so this is only a
           # filter -- a stale width can only make it decline a cell that would
           # have qualified, never accept one -- and #one_line_width below makes
           # the decision from the current content.
-          return if natural_content_width >= spanned_content_width
-          return if one_line_width(@content) >= spanned_content_width
+          return if natural_content_width >= content_width
+          return if one_line_width(@content) >= content_width
 
           [
             @pdf.font, @pdf.font_size, @pdf.bounds.height,
@@ -374,8 +406,7 @@ module Prawn
           # :size option, which the wrapper applies through the document's
           # font size while it lays the line out -- minus :style, which
           # #with_font has already selected a font for.
-          options = @text_options.except(:style)
-          kerning = options[:kerning]
+          kerning = @text_options[:kerning]
           kerning = @pdf.default_kerning? if kerning.nil?
           kerning &&= @pdf.font.has_kerning_data?
 
@@ -385,11 +416,25 @@ module Prawn
           # one otherwise needs the per-token sum: the wrapper counts kerning
           # and spacing once per token, not once per line.
           if !kerning && @pdf.character_spacing.zero?
+            return @pdf.width_of(text, width_options)
+          end
+
+          options =
+            if !kerning || @text_options[:kerning].equal?(true)
+              width_options
+            elsif @text_options.empty?
+              KERNING_TRUE_OPTIONS
+            else
+              @kerning_width_options ||= width_options.merge(:kerning => true).freeze
+            end
+
+          if !text.include?(" ") && !text.include?("\t") && !text.include?("-")
             return @pdf.width_of(text, options)
           end
 
-          options[:kerning] = true if kerning
-          text.scan(TOKEN_PATTERN).sum { |token| @pdf.width_of(token, options) }
+          sum = 0.0
+          text.scan(TOKEN_PATTERN) { |token| sum += @pdf.width_of(token, options) }
+          sum
         end
 
         # Remembers +height+ as the height of one line under the font, frame
@@ -413,7 +458,13 @@ module Prawn
           end
           return if entries.size >= SINGLE_LINE_OPTION_SETS
 
-          entries << [@text_options.transform_values(&:dup).freeze, height]
+          snapshot =
+            if @text_options.empty?
+              NO_FONT_OPTIONS
+            else
+              @text_options.transform_values(&:dup).freeze
+            end
+          entries << [snapshot, height]
         end
 
         def single_line_heights
