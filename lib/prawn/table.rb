@@ -319,26 +319,12 @@ module Prawn
         # page is finished.
         cells_this_page = []
 
-        bounds = @pdf.bounds
-        left_side = bounds.left_side
-        abs_left = bounds.absolute_left
-        abs_bottom = bounds.absolute_bottom
-        standard_rel_classes =
-          Hash.new do |h, k|
-            h[k] = k.instance_method(:relative_x).owner.equal?(Cell) &&
-              k.instance_method(:relative_y).owner.equal?(Cell)
-          end
-
         @cells.each do |cell|
           if start_new_page?(cell, offset, ref_bounds)
             # draw cells on the current page and then start a new one
             # this will also add a header to the new page if a header is set
             # reset array of cells for the new page
             cells_this_page, offset = ink_and_draw_cells_and_start_new_page(cells_this_page, cell)
-            bounds = @pdf.bounds
-            left_side = bounds.left_side
-            abs_left = bounds.absolute_left
-            abs_bottom = bounds.absolute_bottom
 
             # remember the current row for background coloring
             started_new_page_at_row = cell.row
@@ -348,13 +334,7 @@ module Prawn
           cell = set_background_color(cell, started_new_page_at_row)
 
           # add the current cell to the cells array for the current page
-          pt =
-            if standard_rel_classes[cell.class]
-              [cell.x + left_side - abs_left, cell.y + offset - abs_bottom]
-            else
-              [cell.relative_x, cell.relative_y(offset)]
-            end
-          cells_this_page << [cell, pt]
+          cells_this_page << [cell, [cell.relative_x, cell.relative_y(offset)]]
         end
 
         # Draw the last page of cells

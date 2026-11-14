@@ -1228,6 +1228,14 @@ RSpec.describe "Prawn::Table::Cell" do
       shifted = shifted_class.new(@pdf, [0, @pdf.cursor], :content => "hi")
       expect(shifted).to receive(:draw_bounded_content).with([17, anything]).and_call_original
       @pdf.table([[shifted]])
+
+      singleton_shifted = cell(:content => "hi")
+      def singleton_shifted.relative_x
+        super + 17
+      end
+      expect(singleton_shifted).to receive(:draw_bounded_content)
+        .with([17, anything]).and_call_original
+      @pdf.table([[singleton_shifted]])
     end
   end
 end
